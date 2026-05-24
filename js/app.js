@@ -16,12 +16,25 @@ const GameDB = {
 
   /* ---------- init ---------- */
   async init() {
-    try {
-      const res = await fetch(basePath() + 'data/users.db');
-      if (res.ok) {
-        const data = await res.json();
-        if (!localStorage.getItem('gp_db_loaded')) {
-          // First run: import users from .db file
+    // 1순위: users.db.js 에 내장된 데이터 (file:// 환경에서도 동작)
+    if (window.USERS_DB && !localStorage.getItem('gp_db_loaded')) {
+      const existing = this._getUsers();
+      const merged = [...existing];
+      (window.USERS_DB.users || []).forEach(u => {
+        if (!merged.find(e => e.username === u.username)) {
+          merged.push({ username: u.username, password: u.password, role: u.role || 'user' });
+        }
+      });
+      this._setUsers(merged);
+      localStorage.setItem('gp_db_loaded', '1');
+    }
+
+    // 2순위: HTTP 서버 환경에서 users.db fetch 시도
+    if (!localStorage.getItem('gp_db_loaded')) {
+      try {
+        const res = await fetch(basePath() + 'data/users.db');
+        if (res.ok) {
+          const data = await res.json();
           const existing = this._getUsers();
           const merged = [...existing];
           (data.users || []).forEach(u => {
@@ -32,10 +45,10 @@ const GameDB = {
           this._setUsers(merged);
           localStorage.setItem('gp_db_loaded', '1');
         }
-      }
-    } catch (_) { /* file:// or fetch failed — use localStorage */ }
+      } catch (_) { /* fetch 실패 — 무시 */ }
+    }
 
-    // Ensure at least one admin account exists
+    // 계정이 하나도 없으면 기본 admin 생성
     const users = this._getUsers();
     if (users.length === 0) {
       this._setUsers([{ username: 'admin', password: 'admin', role: 'admin' }]);
