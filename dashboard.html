@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameHub - 대시보드</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.welcome-banner {
+  background: linear-gradient(135deg, rgba(0,255,255,0.06), rgba(255,0,255,0.06));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px 28px;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.welcome-text { font-size: 1.1rem; color: var(--text); }
+.welcome-text span { color: var(--cyan); font-weight: bold; }
+.welcome-sub { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+
+.mini-lb { margin-top: 8px; }
+.mini-lb-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.82rem;
+}
+.mini-lb-row:last-child { border-bottom: none; }
+.mini-lb-rank { width: 20px; font-weight: bold; }
+.mini-lb-user { flex: 1; color: var(--text); }
+.mini-lb-score { color: var(--yellow); }
+
+.lb-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.lb-preview-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.lb-preview-title {
+  font-size: 0.8rem;
+  letter-spacing: 2px;
+  color: var(--cyan);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+</style>
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container">
+
+  <!-- Welcome Banner -->
+  <div class="welcome-banner" id="welcomeBanner">
+    <div>
+      <div class="welcome-text">안녕하세요, <span id="usernameDisplay">-</span> 님!</div>
+      <div class="welcome-sub" id="dateDisplay"></div>
+    </div>
+    <div id="myBestScores" style="text-align:right;font-size:0.78rem;color:var(--muted);"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <!-- Games -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">▸ 게임 목록</span>
+    </div>
+    <div class="game-grid" id="gameGrid"></div>
+  </div>
+
+  <!-- Leaderboard Preview -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">▸ 게임별 1위</span>
+      <a href="leaderboard.html" class="btn btn-ghost btn-sm">전체 보기 →</a>
+    </div>
+    <div class="lb-preview-grid" id="lbPreview"></div>
+  </div>
+
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const GAMES = [
+  {
+    id: 'tetris',
+    name: '테트리스',
+    icon: '🟦',
+    desc: '클래식 블록 쌓기 게임. 줄을 완성해 점수를 획득하세요.',
+    tag: 'CLASSIC',
+    url: 'games/tetris.html'
+  },
+  {
+    id: 'snake',
+    name: '스네이크',
+    icon: '🐍',
+    desc: '먹이를 먹어 몸을 키우되 벽과 자신을 피하세요.',
+    tag: 'ARCADE',
+    url: 'games/snake.html'
+  },
+  {
+    id: 'breakout',
+    name: '브레이크아웃',
+    icon: '🧱',
+    desc: '공으로 모든 벽돌을 깨뜨려라. 패들을 놓치지 마세요.',
+    tag: 'ACTION',
+    url: 'games/breakout.html'
+  },
+  {
+    id: 'memory',
+    name: '메모리 매치',
+    icon: '🃏',
+    desc: '카드를 뒤집어 같은 쌍을 맞추세요. 빠를수록 고득점!',
+    tag: 'PUZZLE',
+    url: 'games/memory.html'
+  }
+];
+
+async function init() {
+  await GameDB.init();
+  const session = Auth.requireAuth();
+  if (!session) return;
+
+  buildNavbar('dashboard');
+
+  // Welcome
+  document.getElementById('usernameDisplay').textContent = session.username;
+  document.getElementById('dateDisplay').textContent =
+    new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+
+  // My best scores
+  const bests = GameDB.getAllGamesBest(session.username);
+  const hasAny = Object.values(bests).some(v => v > 0);
+  if (hasAny) {
+    document.getElementById('myBestScores').innerHTML =
+      '<div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:4px;">내 최고 기록</div>' +
+      GAMES.map(g => bests[g.id]
+        ? `<div>${g.icon} ${g.name}: <span style="color:var(--yellow)">${formatScore(bests[g.id])}</span></div>`
+        : ''
+      ).join('');
+  }
+
+  // Stats
+  const allUsers = GameDB.getUsers().length;
+  const allScores = GameDB._getScores().length;
+  const scorers = GameDB.getTotalScorers();
+  const statsData = [
+    { label: '등록된 유저', value: allUsers },
+    { label: '총 게임 횟수', value: allScores },
+    { label: '점수 보유 유저', value: scorers },
+    { label: '게임 종류', value: GAMES.length }
+  ];
+  document.getElementById('statsGrid').innerHTML = statsData.map(s => `
+    <div class="stat-card">
+      <div class="stat-value">${s.value}</div>
+      <div class="stat-label">${s.label}</div>
+    </div>
+  `).join('');
+
+  // Game cards
+  document.getElementById('gameGrid').innerHTML = GAMES.map(g => {
+    const best = GameDB.getUserBest(session.username, g.id);
+    return `
+      <a href="${g.url}" class="game-card">
+        <div class="game-card-icon">${g.icon}</div>
+        <div class="game-card-name">${g.name}</div>
+        <div class="game-card-desc">${g.desc}</div>
+        <div class="game-card-meta">
+          <span class="game-card-best">${best ? '최고: ' + formatScore(best) : '첫 도전!'}</span>
+          <span class="game-card-tag">${g.tag}</span>
+        </div>
+      </a>
+    `;
+  }).join('');
+
+  // LB Preview
+  document.getElementById('lbPreview').innerHTML = GAMES.map(g => {
+    const top3 = GameDB.getTopScores(g.id, 3);
+    const rankSymbols = ['🥇', '🥈', '🥉'];
+    return `
+      <div class="lb-preview-card">
+        <div class="lb-preview-title">${g.icon} ${g.name}</div>
+        ${top3.length === 0
+          ? '<div style="color:var(--muted);font-size:0.78rem;padding:8px 0;">아직 기록 없음</div>'
+          : top3.map((s, i) => `
+            <div class="mini-lb-row">
+              <span class="mini-lb-rank">${rankSymbols[i]}</span>
+              <span class="mini-lb-user">${s.username}</span>
+              <span class="mini-lb-score">${formatScore(s.score)}</span>
+            </div>
+          `).join('')
+        }
+      </div>
+    `;
+  }).join('');
+}
+
+init();
+</script>
+</body>
+</html>

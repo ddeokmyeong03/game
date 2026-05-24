@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameHub - 관리자</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.user-table { width: 100%; border-collapse: collapse; }
+.user-table th { text-align: left; padding: 8px 14px; color: var(--muted); font-size: 0.72rem; letter-spacing: 2px; border-bottom: 1px solid var(--border); }
+.user-table td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.88rem; }
+.user-table tr:hover td { background: rgba(255,68,102,0.03); }
+.role-admin { color: var(--red); font-size: 0.75rem; }
+.role-user  { color: var(--muted); font-size: 0.75rem; }
+
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 768px) { .panel-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container">
+  <div class="page-header">
+    <div class="page-title" style="color:var(--red);">관리자 패널</div>
+    <div class="page-subtitle">유저 관리 및 데이터 관리</div>
+  </div>
+
+  <div id="alertArea"></div>
+
+  <div class="panel-grid">
+    <!-- User list -->
+    <div class="card" style="grid-column: 1/-1;">
+      <div class="section-header">
+        <span class="section-title">▸ 유저 목록</span>
+        <span id="userCount" style="font-size:0.8rem;color:var(--muted);"></span>
+      </div>
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>아이디</th>
+            <th>역할</th>
+            <th>최고 점수 합계</th>
+            <th>작업</th>
+          </tr>
+        </thead>
+        <tbody id="userBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Add user -->
+    <div class="card">
+      <div class="section-header">
+        <span class="section-title">▸ 유저 추가</span>
+      </div>
+      <div id="addAlert"></div>
+      <form onsubmit="addUser(event)">
+        <div class="form-group">
+          <label class="form-label">아이디</label>
+          <input type="text" id="addUsername" class="form-input" placeholder="4~16자 영문/숫자/_" minlength="4" maxlength="16" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">비밀번호</label>
+          <input type="text" id="addPassword" class="form-input" placeholder="비밀번호" minlength="4" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">역할</label>
+          <select id="addRole" class="form-input">
+            <option value="user">일반 유저</option>
+            <option value="admin">관리자</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">+ 추가</button>
+      </form>
+    </div>
+
+    <!-- DB Tools -->
+    <div class="card">
+      <div class="section-header">
+        <span class="section-title">▸ 데이터 관리</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button class="btn btn-ghost" onclick="GameDB.exportDB()">
+          ⬇ users.db 내보내기
+        </button>
+        <label class="btn btn-ghost" style="cursor:pointer;justify-content:center;">
+          ⬆ users.db 불러오기
+          <input type="file" accept=".db,.json,.txt" style="display:none;" onchange="importDB(this)">
+        </label>
+        <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+        <button class="btn btn-danger" onclick="confirmClearScores()">
+          🗑 전체 점수 초기화
+        </button>
+      </div>
+      <div style="margin-top:16px;font-size:0.75rem;color:var(--muted);line-height:1.7;">
+        <strong style="color:var(--cyan);">users.db 형식:</strong><br>
+        <code style="color:var(--text);font-size:0.7rem;">
+          {"users": [{"username": "user1",<br>
+          &nbsp;"password": "pass1", "role": "user"}]}
+        </code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+async function init() {
+  await GameDB.init();
+  const session = Auth.requireAuth();
+  if (!session) return;
+  if (!Auth.isAdmin()) {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+  buildNavbar('admin');
+  renderUsers();
+}
+
+function renderUsers() {
+  const users = GameDB.getUsers();
+  document.getElementById('userCount').textContent = `총 ${users.length}명`;
+
+  const body = document.getElementById('userBody');
+  const gameIds = ['tetris', 'snake', 'breakout', 'memory'];
+  const me = Auth.getSession().username;
+
+  body.innerHTML = users.map((u, i) => {
+    const total = gameIds.reduce((sum, g) => sum + GameDB.getUserBest(u.username, g), 0);
+    return `
+      <tr>
+        <td style="color:var(--muted)">${i + 1}</td>
+        <td>
+          ${u.username}
+          ${u.username === me ? ' <span style="color:var(--cyan);font-size:0.7rem">(나)</span>' : ''}
+        </td>
+        <td><span class="role-${u.role}">${u.role === 'admin' ? '🔑 관리자' : '👤 유저'}</span></td>
+        <td style="color:var(--yellow)">${total ? formatScore(total) : '–'}</td>
+        <td>
+          ${u.username !== me
+            ? `<button class="btn btn-danger btn-sm" onclick="removeUser('${u.username}')">삭제</button>`
+            : '<span style="color:var(--muted);font-size:0.75rem">–</span>'
+          }
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function addUser(e) {
+  e.preventDefault();
+  const u = document.getElementById('addUsername').value.trim();
+  const p = document.getElementById('addPassword').value;
+  const r = document.getElementById('addRole').value;
+  const area = document.getElementById('addAlert');
+
+  if (!/^[a-zA-Z0-9_]{4,16}$/.test(u)) {
+    showAlert(area, '아이디는 영문/숫자/_ 4~16자'); return;
+  }
+
+  const users = GameDB.getUsers();
+  if (users.find(usr => usr.username === u)) {
+    showAlert(area, '이미 존재하는 아이디'); return;
+  }
+
+  const allUsers = [...users, { username: u, password: p, role: r }];
+  GameDB._setUsers(allUsers);
+  showAlert(area, `"${u}" 추가 완료!`, 'success');
+  e.target.reset();
+  renderUsers();
+}
+
+function removeUser(username) {
+  if (!confirm(`"${username}" 을 삭제하시겠습니까?\n이 유저의 점수는 남아 있습니다.`)) return;
+  GameDB.removeUser(username);
+  renderUsers();
+  showAlert(document.getElementById('alertArea'), `"${username}" 삭제됨`, 'success');
+}
+
+async function importDB(input) {
+  try {
+    const count = await GameDB.importDB(input.files[0]);
+    showAlert(document.getElementById('alertArea'), `${count}개 계정 가져옴`, 'success');
+    renderUsers();
+  } catch (e) {
+    showAlert(document.getElementById('alertArea'), '파일 오류: ' + e.message);
+  }
+  input.value = '';
+}
+
+function confirmClearScores() {
+  if (confirm('⚠️ 모든 게임 점수를 초기화합니다.\n이 작업은 되돌릴 수 없습니다.\n계속하시겠습니까?')) {
+    localStorage.removeItem('gp_scores');
+    showAlert(document.getElementById('alertArea'), '점수가 초기화되었습니다.', 'success');
+    renderUsers();
+  }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameHub - 메모리 매치</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+.memory-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 80px);
+  grid-template-rows: repeat(4, 80px);
+  gap: 10px;
+}
+
+.mem-card {
+  width: 80px; height: 80px;
+  background: var(--card2);
+  border: 1px solid rgba(0,255,255,0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.2s, background 0.2s;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.mem-card::before {
+  content: '?';
+  color: rgba(0,255,255,0.25);
+  font-size: 1.6rem;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
+.mem-card.show { font-size: 2.4rem; }
+.mem-card.show::before { display: none; }
+
+.mem-card:hover:not(.matched):not(.show) {
+  border-color: rgba(0,255,255,0.5);
+  transform: scale(1.05);
+}
+
+.mem-card.flipping { animation: flip 0.15s ease; }
+
+.mem-card.matched {
+  background: rgba(0,255,136,0.08);
+  border-color: rgba(0,255,136,0.5);
+  cursor: default;
+  animation: matchPop 0.3s ease;
+}
+
+.mem-card.wrong {
+  animation: shake 0.3s ease;
+  border-color: rgba(255,68,100,0.6);
+  background: rgba(255,68,100,0.08);
+}
+
+@keyframes flip {
+  0% { transform: scaleX(1); }
+  50% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+
+@keyframes matchPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.mem-info {
+  display: flex;
+  gap: 24px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.mem-info-item { text-align: center; }
+.mem-info-val { font-size: 1.3rem; color: var(--yellow); font-weight: bold; }
+
+.difficulty-select {
+  display: flex;
+  gap: 8px;
+}
+
+.diff-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+.diff-btn:hover, .diff-btn.selected {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(0,255,255,0.06);
+}
+</style>
+</head>
+<body class="game-page">
+
+<div class="game-topbar">
+  <div class="game-topbar-left">
+    <a href="../dashboard.html" class="game-topbar-back">← 대시보드</a>
+    <span class="game-topbar-title">MEMORY MATCH</span>
+  </div>
+  <div class="game-stats">
+    <div class="game-stat">
+      <div class="game-stat-label">TIME</div>
+      <div class="game-stat-val" id="statTime">0:00</div>
+    </div>
+    <div class="game-stat">
+      <div class="game-stat-label">MOVES</div>
+      <div class="game-stat-val" id="statMoves">0</div>
+    </div>
+    <div class="game-stat">
+      <div class="game-stat-label">PAIRS</div>
+      <div class="game-stat-val" id="statPairs">0/8</div>
+    </div>
+  </div>
+  <div class="game-controls">
+    <button class="btn btn-ghost btn-sm" onclick="shuffleAndStart()">↺ 새 게임</button>
+  </div>
+</div>
+
+<div class="game-area">
+  <div class="memory-wrap">
+    <div class="mem-info">
+      <div class="mem-info-item">
+        <div class="mem-info-val" id="infoScore">0</div>
+        <div>현재 점수 예상</div>
+      </div>
+      <div class="mem-info-item">
+        <div class="mem-info-val" id="infoBest">0</div>
+        <div>최고 점수</div>
+      </div>
+    </div>
+
+    <div class="memory-grid" id="memGrid"></div>
+  </div>
+
+  <div class="tetris-sidebar">
+    <div class="sidebar-box">
+      <div class="sidebar-box-title">점수 계산식</div>
+      <div style="font-size:0.72rem;color:var(--muted);line-height:1.8;">
+        기본: 10,000점<br>
+        - 시간 × 30<br>
+        - 오답 × 300<br><br>
+        <span style="color:var(--green)">빠르고 정확하게!</span>
+      </div>
+    </div>
+
+    <div class="sidebar-box">
+      <div class="sidebar-box-title">DIFFICULTY</div>
+      <div class="difficulty-select" style="flex-direction:column;gap:6px;margin-top:4px;">
+        <button class="diff-btn selected" id="diff-easy" onclick="setDiff('easy')">EASY (4×4)</button>
+        <button class="diff-btn" id="diff-hard" onclick="setDiff('hard')">HARD (5×6)</button>
+      </div>
+    </div>
+
+    <div class="controls-legend">
+      <div><span class="ctrl-key">클릭</span> 카드 뒤집기</div>
+    </div>
+  </div>
+</div>
+
+<!-- Win Modal -->
+<div class="modal-overlay" id="modal" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-title">완성! 🎉</div>
+    <div class="modal-score" id="modalScore">0</div>
+    <div class="modal-score-label">SCORE</div>
+    <div id="modalTime" style="color:var(--muted);font-size:0.85rem;"></div>
+    <div id="modalMoves" style="color:var(--muted);font-size:0.85rem;margin-bottom:8px;"></div>
+    <div id="newRecordMsg" style="color:var(--green);font-size:0.85rem;margin-bottom:8px;display:none;">
+      🏆 신기록 달성!
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="shuffleAndStart()">▸ 다시하기</button>
+      <a href="../dashboard.html" class="btn btn-ghost">대시보드</a>
+    </div>
+  </div>
+</div>
+
+<script src="../js/app.js"></script>
+<script>
+const EMOJIS_EASY = ['🍕','🎮','🚀','🌈','🦊','🎸','🍀','🔥'];
+const EMOJIS_HARD = ['🍕','🎮','🚀','🌈','🦊','🎸','🍀','🔥','🐉','🎯','🍣','🌸','⚡','🎪','🦄'];
+
+let cards = [];
+let flipped = [];
+let matched = 0;
+let moves = 0, mismatches = 0;
+let startTime, timerInterval;
+let gameActive = false;
+let lockBoard = false;
+let difficulty = 'easy';
+let gridCols = 4, totalPairs = 8;
+
+function setDiff(d) {
+  difficulty = d;
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('diff-' + d).classList.add('selected');
+  if (d === 'easy') { gridCols = 4; totalPairs = 8; }
+  else              { gridCols = 6; totalPairs = 15; }
+  shuffleAndStart();
+}
+
+function shuffleAndStart() {
+  document.getElementById('modal').style.display = 'none';
+  clearInterval(timerInterval);
+
+  const emojis = difficulty === 'easy' ? [...EMOJIS_EASY] : [...EMOJIS_HARD];
+  const pairs = emojis.slice(0, totalPairs);
+  const deck = [...pairs, ...pairs].sort(() => Math.random() - 0.5);
+
+  cards = deck.map((emoji, i) => ({ id: i, emoji, matched: false, shown: false }));
+  flipped = [];
+  matched = 0; moves = 0; mismatches = 0;
+  gameActive = false; lockBoard = false;
+  startTime = null;
+
+  updateStats();
+  document.getElementById('infoScore').textContent = '–';
+  renderGrid();
+}
+
+function renderGrid() {
+  const grid = document.getElementById('memGrid');
+  const cols = difficulty === 'hard' ? 6 : 4;
+  const rows = difficulty === 'hard' ? 5 : 4;
+  const cellSize = difficulty === 'hard' ? 65 : 80;
+
+  grid.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+  grid.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+
+  grid.innerHTML = cards.map((c, i) => `
+    <div class="mem-card ${c.shown ? 'show' : ''} ${c.matched ? 'matched' : ''}"
+         id="card-${i}"
+         onclick="flipCard(${i})"
+         style="width:${cellSize}px;height:${cellSize}px;font-size:${c.shown ? Math.floor(cellSize*0.4)+'px' : '0'}">
+      ${c.shown ? c.emoji : ''}
+    </div>
+  `).join('');
+}
+
+function flipCard(i) {
+  if (lockBoard || !gameActive && flipped.length === 0 && moves === 0) {
+    // Start timer on first flip
+    if (!gameActive) {
+      gameActive = true;
+      startTime = Date.now();
+      timerInterval = setInterval(updateTimer, 200);
+    }
+  }
+  if (lockBoard) return;
+
+  const c = cards[i];
+  if (c.matched || c.shown) return;
+  if (flipped.length === 2) return;
+
+  // Show card
+  c.shown = true;
+  const el = document.getElementById('card-' + i);
+  el.classList.add('show', 'flipping');
+  el.textContent = c.emoji;
+  el.style.fontSize = difficulty === 'hard' ? '26px' : '2.4rem';
+  setTimeout(() => el.classList.remove('flipping'), 150);
+
+  flipped.push(i);
+
+  if (flipped.length === 2) {
+    moves++;
+    updateStats();
+    checkMatch();
+  }
+}
+
+function checkMatch() {
+  const [a, b] = flipped;
+  if (cards[a].emoji === cards[b].emoji) {
+    // Match!
+    cards[a].matched = true;
+    cards[b].matched = true;
+    document.getElementById('card-' + a).classList.add('matched');
+    document.getElementById('card-' + b).classList.add('matched');
+    matched++;
+    flipped = [];
+    updateStats();
+    updateScorePreview();
+
+    if (matched === totalPairs) {
+      setTimeout(winGame, 400);
+    }
+  } else {
+    // No match
+    mismatches++;
+    lockBoard = true;
+    document.getElementById('card-' + a).classList.add('wrong');
+    document.getElementById('card-' + b).classList.add('wrong');
+    setTimeout(() => {
+      cards[a].shown = false;
+      cards[b].shown = false;
+      ['card-' + a, 'card-' + b].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove('show', 'wrong');
+        el.textContent = '';
+        el.style.fontSize = '0';
+      });
+      flipped = [];
+      lockBoard = false;
+    }, 800);
+  }
+}
+
+function calcScore() {
+  const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+  const base = totalPairs === 8 ? 10000 : 20000;
+  return Math.max(0, base - elapsed * 30 - mismatches * 300);
+}
+
+function updateScorePreview() {
+  document.getElementById('infoScore').textContent = formatScore(calcScore());
+}
+
+function updateTimer() {
+  if (!startTime) return;
+  const s = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  document.getElementById('statTime').textContent = `${m}:${sec.toString().padStart(2,'0')}`;
+  updateScorePreview();
+}
+
+function updateStats() {
+  document.getElementById('statMoves').textContent = moves;
+  document.getElementById('statPairs').textContent = `${matched}/${totalPairs}`;
+}
+
+function winGame() {
+  clearInterval(timerInterval);
+  gameActive = false;
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const finalScore = calcScore();
+
+  const session = Auth.getSession();
+  if (session) {
+    GameDB.addScore(session.username, 'memory', finalScore);
+    const best = GameDB.getUserBest(session.username, 'memory');
+    document.getElementById('infoBest').textContent = formatScore(best);
+    if (finalScore >= best) {
+      document.getElementById('newRecordMsg').style.display = 'block';
+    } else {
+      document.getElementById('newRecordMsg').style.display = 'none';
+    }
+  }
+
+  const m = Math.floor(elapsed / 60), s = elapsed % 60;
+  document.getElementById('modalScore').textContent = formatScore(finalScore);
+  document.getElementById('modalTime').textContent = `완료 시간: ${m}분 ${s}초`;
+  document.getElementById('modalMoves').textContent = `시도 횟수: ${moves}번 (오답: ${mismatches}번)`;
+  document.getElementById('modal').style.display = 'flex';
+}
+
+async function start() {
+  await GameDB.init();
+  const session = Auth.requireAuth();
+  if (!session) return;
+  const best = GameDB.getUserBest(session.username, 'memory');
+  document.getElementById('infoBest').textContent = formatScore(best);
+  shuffleAndStart();
+}
+start();
+</script>
+</body>
+</html>

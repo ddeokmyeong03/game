@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameHub - 브레이크아웃</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+#boCanvas {
+  border: 1px solid rgba(255,136,0,0.3);
+  box-shadow: 0 0 30px rgba(255,136,0,0.08);
+  background: #050510;
+  cursor: none;
+}
+</style>
+</head>
+<body class="game-page">
+
+<div class="game-topbar">
+  <div class="game-topbar-left">
+    <a href="../dashboard.html" class="game-topbar-back">← 대시보드</a>
+    <span class="game-topbar-title">BREAKOUT</span>
+  </div>
+  <div class="game-stats">
+    <div class="game-stat">
+      <div class="game-stat-label">SCORE</div>
+      <div class="game-stat-val" id="statScore">0</div>
+    </div>
+    <div class="game-stat">
+      <div class="game-stat-label">LIVES</div>
+      <div class="game-stat-val" id="statLives">❤❤❤</div>
+    </div>
+    <div class="game-stat">
+      <div class="game-stat-label">LEVEL</div>
+      <div class="game-stat-val" id="statLevel">1</div>
+    </div>
+  </div>
+  <div class="game-controls">
+    <button class="btn btn-ghost btn-sm" id="pauseBtn" onclick="togglePause()">⏸ 일시정지</button>
+  </div>
+</div>
+
+<div class="game-area">
+  <canvas id="boCanvas" width="480" height="520"></canvas>
+
+  <div class="tetris-sidebar">
+    <div class="sidebar-box">
+      <div class="sidebar-box-title">BEST</div>
+      <div class="sidebar-val" id="bestScore">0</div>
+    </div>
+
+    <div class="controls-legend">
+      <div><span class="ctrl-key">← →</span> 패들 이동</div>
+      <div><span class="ctrl-key">마우스</span> 패들 조작</div>
+      <div><span class="ctrl-key">SPACE</span> 공 발사</div>
+      <div><span class="ctrl-key">P</span> 일시정지</div>
+    </div>
+
+    <div class="sidebar-box" style="font-size:0.75rem;color:var(--muted);line-height:1.8;">
+      <div class="sidebar-box-title">점수표</div>
+      <div style="color:#ff4466">■ 빨강: 10pt</div>
+      <div style="color:#ff8800">■ 주황: 20pt</div>
+      <div style="color:#ffd700">■ 노랑: 30pt</div>
+      <div style="color:#00ff88">■ 초록: 40pt</div>
+      <div style="color:#4488ff">■ 파랑: 50pt</div>
+    </div>
+  </div>
+</div>
+
+<!-- Start Modal -->
+<div class="modal-overlay" id="startModal">
+  <div class="modal-box">
+    <div class="modal-title">BREAKOUT</div>
+    <div style="color:var(--muted);font-size:0.85rem;margin:16px 0;line-height:1.6;">
+      패들로 공을 튕겨 모든 벽돌을 깨세요!<br>
+      마우스 또는 화살표키로 조작합니다.
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="startGame()">▸ 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- Game Over Modal -->
+<div class="modal-overlay" id="modal" style="display:none;">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle">GAME OVER</div>
+    <div class="modal-score" id="modalScore">0</div>
+    <div class="modal-score-label">SCORE</div>
+    <div id="newRecordMsg" style="color:var(--green);font-size:0.85rem;margin-bottom:8px;display:none;">
+      🏆 신기록 달성!
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="restartGame()">▸ 다시하기</button>
+      <a href="../dashboard.html" class="btn btn-ghost">대시보드</a>
+    </div>
+  </div>
+</div>
+
+<script src="../js/app.js"></script>
+<script>
+const canvas = document.getElementById('boCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// Paddle
+const PAD_H = 12, PAD_W = 80;
+let padX;
+
+// Ball
+const BALL_R = 7;
+let ballX, ballY, ballDX, ballDY;
+let launched;
+
+// Bricks
+const BRICK_ROWS = 6, BRICK_COLS = 10;
+const BRICK_W = 44, BRICK_H = 18, BRICK_GAP = 3;
+const BRICK_OFFSET_X = 6, BRICK_OFFSET_Y = 50;
+let bricks;
+
+const BRICK_COLORS = ['#4488ff', '#00ff88', '#ffd700', '#ff8800', '#ff4466', '#cc00ff'];
+const BRICK_SCORES = [50, 40, 30, 20, 10, 15];
+
+// Game state
+let score, lives, level, gameRunning, paused;
+let keys = {};
+
+function initLevel() {
+  padX = W / 2 - PAD_W / 2;
+  ballX = W / 2;
+  ballY = H - 60;
+  const spd = 3.5 + (level - 1) * 0.4;
+  const angle = (Math.random() * 60 - 30) * Math.PI / 180;
+  ballDX = spd * Math.sin(angle);
+  ballDY = -spd * Math.cos(angle);
+  launched = false;
+
+  bricks = [];
+  for (let r = 0; r < BRICK_ROWS; r++) {
+    bricks[r] = [];
+    for (let c = 0; c < BRICK_COLS; c++) {
+      bricks[r][c] = {
+        alive: true,
+        color: BRICK_COLORS[r % BRICK_COLORS.length],
+        score: BRICK_SCORES[r % BRICK_SCORES.length]
+      };
+    }
+  }
+}
+
+function startGame() {
+  document.getElementById('startModal').style.display = 'none';
+  score = 0; lives = 3; level = 1;
+  initLevel();
+  gameRunning = true;
+  updateStats();
+  requestAnimationFrame(loop);
+}
+
+function restartGame() {
+  document.getElementById('modal').style.display = 'none';
+  startGame();
+}
+
+let prevTime = 0;
+function loop(ts) {
+  if (!gameRunning) return;
+  const dt = Math.min(ts - prevTime, 32);
+  prevTime = ts;
+  if (!paused) update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  // Paddle controls
+  if (keys['ArrowLeft'] || keys['a']) padX = Math.max(0, padX - 6);
+  if (keys['ArrowRight'] || keys['d']) padX = Math.min(W - PAD_W, padX + 6);
+
+  if (!launched) {
+    ballX = padX + PAD_W / 2;
+    return;
+  }
+
+  // Move ball
+  ballX += ballDX;
+  ballY += ballDY;
+
+  // Wall bounces
+  if (ballX - BALL_R < 0) { ballX = BALL_R; ballDX = Math.abs(ballDX); }
+  if (ballX + BALL_R > W) { ballX = W - BALL_R; ballDX = -Math.abs(ballDX); }
+  if (ballY - BALL_R < 0) { ballY = BALL_R; ballDY = Math.abs(ballDY); }
+
+  // Paddle collision
+  if (
+    ballY + BALL_R >= H - 40 - PAD_H &&
+    ballY + BALL_R <= H - 40 &&
+    ballX >= padX - 2 &&
+    ballX <= padX + PAD_W + 2
+  ) {
+    ballDY = -Math.abs(ballDY);
+    // Angle based on hit position
+    const rel = (ballX - padX) / PAD_W - 0.5;
+    ballDX = rel * 7;
+    ballY = H - 40 - PAD_H - BALL_R;
+  }
+
+  // Ball out
+  if (ballY - BALL_R > H) {
+    lives--;
+    if (lives <= 0) {
+      doGameOver(false);
+    } else {
+      initLevel();
+      // Re-use same score and level
+      launched = false;
+    }
+    updateStats();
+    return;
+  }
+
+  // Brick collision
+  for (let r = 0; r < BRICK_ROWS; r++) {
+    for (let c = 0; c < BRICK_COLS; c++) {
+      const b = bricks[r][c];
+      if (!b.alive) continue;
+      const bx = BRICK_OFFSET_X + c * (BRICK_W + BRICK_GAP);
+      const by = BRICK_OFFSET_Y + r * (BRICK_H + BRICK_GAP);
+
+      if (
+        ballX + BALL_R > bx && ballX - BALL_R < bx + BRICK_W &&
+        ballY + BALL_R > by && ballY - BALL_R < by + BRICK_H
+      ) {
+        b.alive = false;
+        score += b.score * level;
+
+        // Reflect
+        const overlapX = Math.min(ballX + BALL_R - bx, bx + BRICK_W - (ballX - BALL_R));
+        const overlapY = Math.min(ballY + BALL_R - by, by + BRICK_H - (ballY - BALL_R));
+        if (overlapX < overlapY) ballDX *= -1; else ballDY *= -1;
+
+        updateStats();
+
+        // Check win
+        if (bricks.every(row => row.every(b => !b.alive))) {
+          level++;
+          if (level > 5) {
+            doGameOver(true);
+          } else {
+            initLevel();
+          }
+        }
+        return;
+      }
+    }
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#050510';
+  ctx.fillRect(0, 0, W, H);
+
+  // Bricks
+  for (let r = 0; r < BRICK_ROWS; r++) {
+    for (let c = 0; c < BRICK_COLS; c++) {
+      const b = bricks[r][c];
+      if (!b.alive) continue;
+      const bx = BRICK_OFFSET_X + c * (BRICK_W + BRICK_GAP);
+      const by = BRICK_OFFSET_Y + r * (BRICK_H + BRICK_GAP);
+
+      ctx.fillStyle = b.color;
+      ctx.fillRect(bx, by, BRICK_W, BRICK_H);
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(bx, by, BRICK_W, 3);
+      ctx.fillRect(bx, by, 3, BRICK_H);
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fillRect(bx, by + BRICK_H - 3, BRICK_W, 3);
+    }
+  }
+
+  // Paddle
+  ctx.fillStyle = '#aaddff';
+  ctx.beginPath();
+  ctx.roundRect(padX, H - 40 - PAD_H, PAD_W, PAD_H, 4);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillRect(padX + 4, H - 40 - PAD_H + 2, PAD_W - 8, 3);
+
+  // Ball
+  const grad = ctx.createRadialGradient(ballX - 2, ballY - 2, 1, ballX, ballY, BALL_R);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.5, '#aaddff');
+  grad.addColorStop(1, '#4488ff');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(ballX, ballY, BALL_R, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Launch hint
+  if (!launched) {
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = '12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('SPACE 또는 클릭으로 발사', W / 2, H - 15);
+    ctx.textAlign = 'left';
+  }
+
+  // Pause
+  if (paused) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#ff8800';
+    ctx.font = 'bold 28px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('PAUSED', W / 2, H / 2);
+    ctx.textAlign = 'left';
+  }
+}
+
+function updateStats() {
+  document.getElementById('statScore').textContent = formatScore(score);
+  document.getElementById('statLives').textContent = '❤'.repeat(Math.max(0, lives));
+  document.getElementById('statLevel').textContent = level;
+}
+
+function doGameOver(won) {
+  gameRunning = false;
+  const session = Auth.getSession();
+  if (session) {
+    GameDB.addScore(session.username, 'breakout', score);
+    const best = GameDB.getUserBest(session.username, 'breakout');
+    document.getElementById('bestScore').textContent = formatScore(best);
+    if (score >= best && score > 0) {
+      document.getElementById('newRecordMsg').style.display = 'block';
+    } else {
+      document.getElementById('newRecordMsg').style.display = 'none';
+    }
+  }
+  document.getElementById('modalTitle').textContent = won ? 'CLEAR! 🎉' : 'GAME OVER';
+  document.getElementById('modalScore').textContent = formatScore(score);
+  document.getElementById('modal').style.display = 'flex';
+}
+
+function togglePause() {
+  if (!gameRunning) return;
+  paused = !paused;
+  document.getElementById('pauseBtn').textContent = paused ? '▸ 재개' : '⏸ 일시정지';
+}
+
+/* ── Controls ── */
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === ' ') { e.preventDefault(); launched = true; }
+  if (e.key === 'p' || e.key === 'P') togglePause();
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  padX = Math.max(0, Math.min(W - PAD_W,
+    (e.clientX - rect.left) * (W / rect.width) - PAD_W / 2
+  ));
+});
+canvas.addEventListener('click', () => { launched = true; });
+
+/* ── Init ── */
+async function start() {
+  await GameDB.init();
+  const session = Auth.requireAuth();
+  if (!session) return;
+  const best = GameDB.getUserBest(session.username, 'breakout');
+  document.getElementById('bestScore').textContent = formatScore(best);
+}
+start();
+</script>
+</body>
+</html>
