@@ -97,7 +97,7 @@ const BRICK_H  = 24;
 const GAP      = 4;
 const OFFSET_X = (W - COLS * (BRICK_W + GAP) + GAP) / 2;
 const OFFSET_Y = 20;
-const MAX_ROWS = 12;   // game over when brick reaches this row index
+// game over: brick bottom reaches FLOOR_Y (ball floor line)
 
 // ── Ball config ──────────────────────────────────
 const BALL_R    = 7;
@@ -135,9 +135,14 @@ function brickRect(col, row) {
 }
 
 // ── Spawn a new top row ───────────────────────────
+function brickCountRange() {
+  if (turn <= 40) return [1, Math.min(5, 1 + Math.floor(turn / 9))]; // 1→1~5 점진
+  if (turn <= 80) return [3, 7];
+  return [5, 7];
+}
+
 function spawnRow() {
-  const base   = Math.ceil(turn * 1.3);
-  const spread = Math.ceil(base * 0.4);
+  const hp = turn; // HP = 턴 번호 (1턴=1, 2턴=2, ...)
 
   // shuffle column indices
   const cols = Array.from({ length: COLS }, (_, i) => i);
@@ -146,9 +151,9 @@ function spawnRow() {
     [cols[i], cols[j]] = [cols[j], cols[i]];
   }
 
-  const brickCount = 4 + Math.floor(Math.random() * 3); // 4–6
+  const [minB, maxB] = brickCountRange();
+  const brickCount = minB + Math.floor(Math.random() * (maxB - minB + 1));
   for (let i = 0; i < brickCount; i++) {
-    const hp = Math.max(1, base + Math.floor(Math.random() * spread));
     bricks.push({ col: cols[i], row: 0, hp, maxHp: hp });
   }
   // ~55% chance of a +ball item in a remaining slot
@@ -161,11 +166,16 @@ function spawnRow() {
 function dropBricks() {
   bricks.forEach(b  => b.row++);
   items.forEach(it  => it.row++);
-  items = items.filter(it => it.row < MAX_ROWS);
+  // 아이템이 공 바닥선에 닿으면 제거
+  items = items.filter(it => brickRect(it.col, it.row).y + BRICK_H < FLOOR_Y);
 }
 
 function checkGameOver() {
-  return bricks.some(b => b.row >= MAX_ROWS);
+  // 벽돌 바닥이 FLOOR_Y(공이 멈추는 선)에 닿으면 게임오버
+  return bricks.some(b => {
+    const r = brickRect(b.col, b.row);
+    return r.y + r.h >= FLOOR_Y;
+  });
 }
 
 // ── Circle-Rect collision ────────────────────────
@@ -342,20 +352,12 @@ function draw() {
   ctx.fillStyle = '#050510';
   ctx.fillRect(0, 0, W, H);
 
-  // floor line
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  // 바닥 = 공 멈추는 선 = 게임오버 선 (빨간 점선)
+  ctx.strokeStyle = 'rgba(255,60,60,0.35)';
   ctx.lineWidth   = 1;
-  ctx.setLineDash([]);
-  ctx.beginPath();
-  ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y);
-  ctx.stroke();
-
-  // danger zone (bottom of last valid row)
-  const dangerY = OFFSET_Y + MAX_ROWS * (BRICK_H + GAP);
-  ctx.strokeStyle = 'rgba(255,60,60,0.25)';
   ctx.setLineDash([5, 5]);
   ctx.beginPath();
-  ctx.moveTo(0, dangerY); ctx.lineTo(W, dangerY);
+  ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y);
   ctx.stroke();
   ctx.setLineDash([]);
 
