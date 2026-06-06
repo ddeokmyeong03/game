@@ -136,8 +136,9 @@ function brickRect(col, row) {
 
 // ── Spawn a new top row ───────────────────────────
 function brickCountRange() {
-  if (turn <= 40) return [1, Math.min(5, 1 + Math.floor(turn / 9))]; // 1→1~5 점진
-  if (turn <= 80) return [3, 7];
+  if (turn <=  40) return [1, 3];
+  if (turn <=  80) return [2, 5];
+  if (turn <= 120) return [3, 6];
   return [5, 7];
 }
 
