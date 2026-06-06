@@ -58,7 +58,7 @@
     </div>
     <div class="sidebar-box" style="font-size:0.73rem;color:var(--muted);line-height:2;">
       <div class="sidebar-box-title">안내</div>
-      <div>● = 공 추가 아이템</div>
+      <div>턴 = HP = 공 수</div>
       <div style="color:#4488ff">■ 파랑: 약함</div>
       <div style="color:#00cc88">■ 초록</div>
       <div style="color:#ffd700">■ 노랑</div>
@@ -108,11 +108,10 @@ const BALL_DELAY = 5;   // frames between successive ball launches
 // ── Game state ───────────────────────────────────
 let phase;        // 'aim' | 'shooting' | 'dropping'
 let bricks;       // [{col, row, hp, maxHp}]
-let items;        // [{col, row}]  — +ball pickup items
 let balls;        // [{x, y, dx, dy, active, done}]
 let ballCount, launchX, aimAngle;
 let score, turn, paused, gameActive;
-let launchQueue, launchTimer, firstLandX, addBallsNext, dropDelay;
+let launchQueue, launchTimer, firstLandX, dropDelay;
 let raf;
 
 // ── Color by HP ratio ────────────────────────────
@@ -157,18 +156,11 @@ function spawnRow() {
   for (let i = 0; i < brickCount; i++) {
     bricks.push({ col: cols[i], row: 0, hp, maxHp: hp });
   }
-  // ~55% chance of a +ball item in a remaining slot
-  if (Math.random() < 0.55 && cols[brickCount] !== undefined) {
-    items.push({ col: cols[brickCount], row: 0 });
-  }
 }
 
 // ── Drop all bricks one row ───────────────────────
 function dropBricks() {
-  bricks.forEach(b  => b.row++);
-  items.forEach(it  => it.row++);
-  // 아이템이 공 바닥선에 닿으면 제거
-  items = items.filter(it => brickRect(it.col, it.row).y + BRICK_H < FLOOR_Y);
+  bricks.forEach(b => b.row++);
 }
 
 function checkGameOver() {
@@ -188,16 +180,15 @@ function circleRect(cx, cy, r, rx, ry, rw, rh) {
 
 // ── Init ─────────────────────────────────────────
 function initGame() {
-  bricks = []; items = []; balls = [];
-  ballCount   = 1;
+  bricks = []; balls = [];
   launchX     = W / 2;
-  aimAngle    = 0;          // straight up
+  aimAngle    = 0;
   score       = 0;
   turn        = 1;
+  ballCount   = turn; // 턴 = 공 수
   paused      = false;
   gameActive  = true;
   firstLandX  = null;
-  addBallsNext = 0;
   phase       = 'aim';
   cancelAnimationFrame(raf);
   spawnRow();
@@ -285,21 +276,10 @@ function updateShooting() {
       break; // one brick per frame per ball
     }
 
-    // item pickup
-    for (let i = items.length - 1; i >= 0; i--) {
-      const it = items[i];
-      const r  = brickRect(it.col, it.row);
-      const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-      if (Math.hypot(b.x - cx, b.y - cy) < BALL_R + r.w * 0.38) {
-        items.splice(i, 1);
-        addBallsNext++;
-      }
-    }
   }
 
   // transition when all balls done
   if (launchQueue === 0 && balls.every(b => b.done)) {
-    ballCount  += addBallsNext;
     if (firstLandX !== null) {
       launchX = Math.max(BALL_R + 4, Math.min(W - BALL_R - 4, firstLandX));
     }
@@ -316,6 +296,7 @@ function updateDropping() {
   dropBricks();
   if (checkGameOver()) { endGame(); return; }
   turn++;
+  ballCount = turn; // 매 턴 공 1개 자동 추가
   spawnRow();
   balls = [];
   phase = 'aim';
@@ -382,25 +363,6 @@ function draw() {
   }
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
-
-  // items
-  for (const it of items) {
-    const r  = brickRect(it.col, it.row);
-    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-    const rad = r.w * 0.36;
-    ctx.strokeStyle = '#aaffcc';
-    ctx.lineWidth   = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = '#aaffcc';
-    ctx.font = 'bold 13px "Courier New"';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('+', cx, cy + 1);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-  }
 
   // aim guide
   drawAimGuide();
@@ -482,7 +444,6 @@ function fire(py) {
   launchQueue  = ballCount;
   launchTimer  = 0;
   firstLandX   = null;
-  addBallsNext = 0;
   balls        = Array.from({ length: ballCount }, () => ({
     x: launchX, y: FLOOR_Y - BALL_R,
     dx: 0, dy: 0, active: false, done: false
