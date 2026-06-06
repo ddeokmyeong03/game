@@ -72,6 +72,8 @@
             <th>스네이크</th>
             <th>브레이크아웃</th>
             <th>메모리</th>
+            <th>공룡</th>
+            <th>1010!</th>
             <th>합계</th>
           </tr>
         </thead>
@@ -81,14 +83,16 @@
   </div>
 </div>
 
-<script src="data/users.db.js"></script>
+<script src="data/db.js"></script>
 <script src="js/app.js"></script>
 <script>
 const GAMES = [
   { id: 'tetris',   name: '테트리스',    icon: '🟦' },
   { id: 'snake',    name: '스네이크',    icon: '🐍' },
   { id: 'breakout', name: '브레이크아웃', icon: '🧱' },
-  { id: 'memory',   name: '메모리 매치', icon: '🃏' }
+  { id: 'memory',   name: '메모리 매치', icon: '🃏' },
+  { id: 'dino',     name: '공룡 달리기', icon: '🦕' },
+  { id: '1010',     name: '1010!',       icon: '🔲' },
 ];
 
 let currentGame = 'tetris';
@@ -137,14 +141,15 @@ function renderGame(id) {
   const myRank = top.findIndex(s => s.username === myUsername);
 
   body.innerHTML = top.map((s, i) => {
-    const isMe = s.username === myUsername;
-    const rankClass = i < 3 ? `rank-${i+1}` : 'rank-other';
+    const isMe       = s.username === myUsername;
+    const rankClass  = i < 3 ? `rank-${i+1}` : 'rank-other';
+    const displayName = GameDB.getDisplayName(s.username);
     return `
       <tr style="${isMe ? 'background:rgba(0,255,255,0.05);' : ''}">
         <td><span class="rank ${rankClass}">${i < 3 ? medals[i] : (i + 1)}</span></td>
         <td>
           ${isMe ? '<span style="color:var(--cyan)">▶ </span>' : ''}
-          ${s.username}
+          ${displayName}
           ${isMe ? ' <span style="font-size:0.7rem;color:var(--muted)">(나)</span>' : ''}
         </td>
         <td><span class="score-val">${formatScore(s.score)}</span></td>
@@ -181,7 +186,7 @@ function renderOverall() {
   const body = document.getElementById('overallBody');
 
   if (rows.length === 0) {
-    body.innerHTML = '<tr class="empty-row"><td colspan="7">아직 기록이 없습니다.</td></tr>';
+    body.innerHTML = '<tr class="empty-row"><td colspan="9">아직 기록이 없습니다.</td></tr>';
     return;
   }
 
@@ -191,7 +196,7 @@ function renderOverall() {
     return `
       <tr style="${isMe ? 'background:rgba(0,255,255,0.05);' : ''}">
         <td><span class="rank ${rankClass}">${i < 3 ? medals[i] : (i + 1)}</span></td>
-        <td>${isMe ? '<span style="color:var(--cyan)">▶ </span>' : ''}${r.username}</td>
+        <td>${isMe ? '<span style="color:var(--cyan)">▶ </span>' : ''}${GameDB.getDisplayName(r.username)}</td>
         ${r.scores.map(s => `<td><span style="color:var(--muted)">${s ? formatScore(s) : '-'}</span></td>`).join('')}
         <td><span class="score-val">${formatScore(r.total)}</span></td>
       </tr>

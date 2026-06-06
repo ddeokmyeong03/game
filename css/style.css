@@ -1,4 +1,4 @@
-/* === CSS Variables === */
+/* === CSS Variables ===  전 페이지 공통 */
 :root {
   --bg: #0d0d1a;
   --card: #1a1a2e;
@@ -23,13 +23,13 @@ body {
   min-height: 100vh;
 }
 
-/* === Scrollbar === */
+/* === Scrollbar ===  전 페이지 공통 */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.3); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
 
-/* === Navbar === */
+/* === Navbar ===  dashboard, leaderboard, admin */
 .navbar {
   background: rgba(22, 33, 62, 0.95);
   border-bottom: 1px solid var(--border);
@@ -89,14 +89,14 @@ body {
   letter-spacing: 1px;
 }
 
-/* === Container === */
+/* === Container ===  dashboard, leaderboard, admin */
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 20px;
 }
 
-/* === Page Title === */
+/* === Page Title ===  dashboard, leaderboard, admin */
 .page-header {
   margin-bottom: 28px;
 }
@@ -115,7 +115,7 @@ body {
   letter-spacing: 1px;
 }
 
-/* === Section === */
+/* === Section ===  dashboard, leaderboard */
 .section { margin-bottom: 36px; }
 
 .section-header {
@@ -134,7 +134,7 @@ body {
   text-transform: uppercase;
 }
 
-/* === Cards === */
+/* === Cards ===  dashboard, leaderboard, admin */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -142,7 +142,7 @@ body {
   padding: 20px;
 }
 
-/* === Stats Grid === */
+/* === Stats Grid ===  dashboard */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -179,7 +179,7 @@ body {
   text-transform: uppercase;
 }
 
-/* === Game Grid === */
+/* === Game Grid ===  dashboard */
 .game-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -248,7 +248,7 @@ body {
   letter-spacing: 1px;
 }
 
-/* === Leaderboard === */
+/* === Leaderboard ===  leaderboard.html */
 .lb-tabs {
   display: flex;
   gap: 4px;
@@ -308,7 +308,7 @@ body {
 
 .score-val { color: var(--yellow); font-weight: bold; }
 
-/* === Buttons === */
+/* === Buttons ===  전 페이지 공통 */
 .btn {
   padding: 9px 22px;
   border: none;
@@ -350,7 +350,7 @@ body {
 
 .btn-sm { padding: 5px 12px; font-size: 0.75rem; }
 
-/* === Forms === */
+/* === Forms ===  index.html (로그인/가입), admin.html (유저 추가) */
 .form-group { margin-bottom: 16px; }
 
 .form-label {
@@ -380,7 +380,7 @@ body {
   box-shadow: 0 0 10px rgba(0,255,255,0.15);
 }
 
-/* === Alerts === */
+/* === Alerts ===  전 페이지 공통 */
 .alert {
   padding: 10px 16px;
   border-radius: 6px;
@@ -392,7 +392,7 @@ body {
 .alert-success { background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3); color: var(--green); }
 .alert-info { background: rgba(0,255,255,0.08); border: 1px solid var(--border); color: var(--cyan); }
 
-/* === Login Page === */
+/* === Login Page ===  index.html */
 .login-page {
   min-height: 100vh;
   display: flex;
@@ -434,7 +434,7 @@ body {
   margin-top: 6px;
 }
 
-/* === Tabs === */
+/* === Tabs ===  index.html (로그인 탭) */
 .tab-nav {
   display: flex;
   border-bottom: 1px solid var(--border);
@@ -462,7 +462,7 @@ body {
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
-/* === Game Page Layout === */
+/* === Game Page Layout ===  games/*.html 공통 */
 .game-page {
   display: flex;
   flex-direction: column;
@@ -530,13 +530,13 @@ body {
   gap: 20px;
 }
 
-/* === Game Canvas === */
+/* === Game Canvas ===  games/*.html 공통 */
 canvas {
   display: block;
   image-rendering: pixelated;
 }
 
-/* === Modal === */
+/* === Modal ===  games/*.html 공통 (게임 오버 화면) */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -589,7 +589,7 @@ canvas {
   margin-top: 20px;
 }
 
-/* === Tetris Sidebar === */
+/* === Tetris Sidebar ===  games/tetris.html */
 .tetris-sidebar {
   display: flex;
   flex-direction: column;
@@ -618,7 +618,7 @@ canvas {
   font-weight: bold;
 }
 
-/* === Memory game === */
+/* === Memory game ===  games/memory.html */
 .memory-grid {
   display: grid;
   gap: 10px;
@@ -645,7 +645,7 @@ canvas {
 .mem-card.matched { border-color: var(--green); background: rgba(0,255,136,0.08); cursor: default; }
 .mem-card.matched:hover { transform: none; }
 
-/* === Controls legend === */
+/* === Controls legend ===  games/*.html 공통 (조작키 안내) */
 .controls-legend {
   background: var(--card2);
   border: 1px solid var(--border);
@@ -667,7 +667,7 @@ canvas {
   margin-right: 4px;
 }
 
-/* === Admin panel === */
+/* === Admin panel ===  admin.html */
 .admin-section {
   background: rgba(255, 68, 102, 0.05);
   border: 1px solid rgba(255, 68, 102, 0.2);
@@ -684,7 +684,7 @@ canvas {
   margin-bottom: 14px;
 }
 
-/* === Responsive === */
+/* === Responsive ===  전 페이지 공통 */
 @media (max-width: 640px) {
   .navbar-nav { display: none; }
   .game-grid { grid-template-columns: 1fr 1fr; }

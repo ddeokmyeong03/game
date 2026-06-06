@@ -13,27 +13,6 @@
   color: var(--muted);
   letter-spacing: 0.5px;
 }
-.divider {
-  display: flex; align-items: center; gap: 12px;
-  margin: 20px 0;
-  color: var(--muted); font-size: 0.72rem;
-}
-.divider::before, .divider::after {
-  content: ''; flex: 1;
-  height: 1px; background: var(--border);
-}
-.import-area {
-  border: 1px dashed var(--border);
-  border-radius: 8px;
-  padding: 14px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-.import-area:hover { border-color: var(--cyan); color: var(--cyan); }
-#fileInput { display: none; }
 </style>
 </head>
 <body>
@@ -51,7 +30,6 @@
     <div class="tab-nav">
       <button class="tab-btn active" onclick="switchTab('login')">로그인</button>
       <button class="tab-btn" onclick="switchTab('register')">회원가입</button>
-      <button class="tab-btn" onclick="switchTab('import')">DB 불러오기</button>
     </div>
 
     <!-- Login -->
@@ -75,8 +53,12 @@
     <div id="tab-register" class="tab-panel">
       <form id="registerForm" onsubmit="doRegister(event)">
         <div class="form-group">
+          <label class="form-label">본명</label>
+          <input type="text" id="regFullname" class="form-input" placeholder="홍길동 (순위에 표시됩니다)" maxlength="20" required>
+        </div>
+        <div class="form-group">
           <label class="form-label">아이디</label>
-          <input type="text" id="regUser" class="form-input" placeholder="username (4~16자)" minlength="4" maxlength="16" required>
+          <input type="text" id="regUser" class="form-input" placeholder="영문/숫자/_ (4~16자)" minlength="4" maxlength="16" required>
         </div>
         <div class="form-group">
           <label class="form-label">비밀번호</label>
@@ -87,52 +69,30 @@
           <input type="password" id="regPass2" class="form-input" placeholder="비밀번호 재입력" required>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;">
-          ▸ 가입하기
+          ▸ 가입 신청
         </button>
       </form>
-    </div>
-
-    <!-- Import DB -->
-    <div id="tab-import" class="tab-panel">
-      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px;line-height:1.6;">
-        관리자가 제공한 <strong style="color:var(--cyan)">users.db</strong> 파일을 불러와<br>
-        계정 목록을 추가할 수 있습니다.
-      </p>
-      <div class="import-area" onclick="document.getElementById('fileInput').click()">
-        <div style="font-size:1.5rem;margin-bottom:6px;">📂</div>
-        <div>클릭하여 users.db 선택</div>
-        <div style="font-size:0.7rem;margin-top:4px;">JSON 텍스트 파일 (.db)</div>
-      </div>
-      <input type="file" id="fileInput" accept=".db,.json,.txt" onchange="doImport(this)">
-
-      <div class="divider">또는</div>
-
-      <p style="font-size:0.78rem;color:var(--muted);text-align:center;">
-        서버에 <code style="color:var(--cyan)">data/users.db</code>가 있으면 자동으로 로드됩니다.
+      <p style="font-size:0.74rem;color:var(--muted);text-align:center;margin-top:12px;line-height:1.6;">
+        가입 후 관리자 승인이 필요합니다.
       </p>
     </div>
 
     <div class="login-footer">
-      &copy; 2026 GameHub &nbsp;|&nbsp; Tetris · Snake · Breakout · Memory
+      &copy; 2026 GameHub &nbsp;|&nbsp; Tetris · Snake · Breakout · Memory · Dino · 1010!
     </div>
   </div>
 </div>
 
-<script src="data/users.db.js"></script>
+<script src="data/db.js"></script>
 <script src="js/app.js"></script>
 <script>
-  // Init DB on page load
   GameDB.init().then(() => {
-    // If already logged in, go to dashboard
-    if (Auth.getSession()) {
-      window.location.href = 'dashboard.html';
-    }
+    if (Auth.getSession()) window.location.href = 'dashboard.html';
   });
 
   function switchTab(name) {
     document.querySelectorAll('.tab-btn').forEach((b, i) => {
-      const names = ['login', 'register', 'import'];
-      b.classList.toggle('active', names[i] === name);
+      b.classList.toggle('active', ['login','register'][i] === name);
     });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.getElementById('tab-' + name).classList.add('active');
@@ -143,8 +103,11 @@
     e.preventDefault();
     const u = document.getElementById('loginUser').value.trim();
     const p = document.getElementById('loginPass').value;
-    if (Auth.login(u, p)) {
+    const result = Auth.login(u, p);
+    if (result === true) {
       window.location.href = 'dashboard.html';
+    } else if (result === 'pending') {
+      showAlert(document.getElementById('alertArea'), '가입 승인 대기 중입니다. 관리자에게 문의하세요.', 'info');
     } else {
       showAlert(document.getElementById('alertArea'), '아이디 또는 비밀번호가 틀렸습니다.');
     }
@@ -152,34 +115,22 @@
 
   function doRegister(e) {
     e.preventDefault();
-    const u = document.getElementById('regUser').value.trim();
-    const p = document.getElementById('regPass').value;
+    const fn = document.getElementById('regFullname').value.trim();
+    const u  = document.getElementById('regUser').value.trim();
+    const p  = document.getElementById('regPass').value;
     const p2 = document.getElementById('regPass2').value;
     const area = document.getElementById('alertArea');
+    if (!fn) { showAlert(area, '본명을 입력해주세요.'); return; }
     if (p !== p2) { showAlert(area, '비밀번호가 일치하지 않습니다.'); return; }
     if (!/^[a-zA-Z0-9_]{4,16}$/.test(u)) {
       showAlert(area, '아이디는 영문/숫자/_ 4~16자여야 합니다.'); return;
     }
-    if (GameDB.addUser(u, p)) {
-      showAlert(area, `계정 "${u}" 가 생성되었습니다. 로그인하세요.`, 'success');
+    if (GameDB.addUser(u, p, fn)) {
+      showAlert(area, `"${fn}" 님의 가입 신청이 완료되었습니다. 관리자 승인 후 로그인하세요.`, 'success');
       document.getElementById('registerForm').reset();
-      setTimeout(() => switchTab('login'), 1500);
     } else {
       showAlert(area, '이미 존재하는 아이디입니다.');
     }
-  }
-
-  async function doImport(input) {
-    const file = input.files[0];
-    if (!file) return;
-    try {
-      const count = await GameDB.importDB(file);
-      showAlert(document.getElementById('alertArea'),
-        `${count}개 계정을 불러왔습니다. 로그인하세요.`, 'success');
-    } catch (err) {
-      showAlert(document.getElementById('alertArea'), '파일 형식이 올바르지 않습니다: ' + err.message);
-    }
-    input.value = '';
   }
 </script>
 </body>

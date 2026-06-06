@@ -94,7 +94,7 @@
 
 </div>
 
-<script src="data/users.db.js"></script>
+<script src="data/db.js"></script>
 <script src="js/app.js"></script>
 <script>
 const GAMES = [
@@ -129,6 +129,22 @@ const GAMES = [
     desc: '카드를 뒤집어 같은 쌍을 맞추세요. 빠를수록 고득점!',
     tag: 'PUZZLE',
     url: 'games/memory.html'
+  },
+  {
+    id: 'dino',
+    name: '공룡 달리기',
+    icon: '🦕',
+    desc: '장애물을 피해 최대한 멀리 달려라. SPACE로 점프, ↓로 웅크리기.',
+    tag: 'RUNNER',
+    url: 'games/dino.html'
+  },
+  {
+    id: '1010',
+    name: '1010!',
+    icon: '🔲',
+    desc: '블록을 배치해 가로·세로 줄을 완성하라. 놓을 곳이 없으면 종료!',
+    tag: 'PUZZLE',
+    url: 'games/1010.html'
   }
 ];
 
@@ -140,7 +156,7 @@ async function init() {
   buildNavbar('dashboard');
 
   // Welcome
-  document.getElementById('usernameDisplay').textContent = session.username;
+  document.getElementById('usernameDisplay').textContent = GameDB.getDisplayName(session.username);
   document.getElementById('dateDisplay').textContent =
     new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
@@ -201,7 +217,7 @@ async function init() {
           : top3.map((s, i) => `
             <div class="mini-lb-row">
               <span class="mini-lb-rank">${rankSymbols[i]}</span>
-              <span class="mini-lb-user">${s.username}</span>
+              <span class="mini-lb-user">${GameDB.getDisplayName(s.username)}</span>
               <span class="mini-lb-score">${formatScore(s.score)}</span>
             </div>
           `).join('')

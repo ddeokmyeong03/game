@@ -3,9 +3,253 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GameHub - 테트리스</title>
-<link rel="stylesheet" href="../css/style.css">
+<title>TETRIS</title>
 <style>
+/* === CSS Variables === */
+:root {
+  --bg: #0d0d1a;
+  --card: #1a1a2e;
+  --card2: #16213e;
+  --border: rgba(0, 255, 255, 0.2);
+  --border-hover: rgba(0, 255, 255, 0.6);
+  --cyan: #00ffff;
+  --magenta: #ff00ff;
+  --green: #00ff88;
+  --yellow: #ffd700;
+  --red: #ff4466;
+  --text: #e0e0ff;
+  --muted: #7777aa;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Courier New', Courier, monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* === Scrollbar === */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* === Buttons === */
+.btn {
+  padding: 9px 22px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-primary {
+  background: var(--cyan);
+  color: #050510;
+  font-weight: bold;
+}
+.btn-primary:hover {
+  background: #33ffff;
+  box-shadow: 0 0 20px rgba(0,255,255,0.4);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--border-hover); }
+
+.btn-sm { padding: 5px 12px; font-size: 0.75rem; }
+
+/* === Game Page Layout === */
+.game-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.game-topbar {
+  background: rgba(22, 33, 62, 0.97);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.game-topbar-left { display: flex; align-items: center; gap: 16px; }
+
+.game-topbar-title {
+  font-size: 1.1rem;
+  color: var(--cyan);
+  letter-spacing: 3px;
+  text-shadow: 0 0 10px rgba(0,255,255,0.4);
+}
+
+.game-topbar-back {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.game-topbar-back:hover { color: var(--cyan); border-color: var(--border-hover); }
+
+.game-stats {
+  display: flex;
+  gap: 20px;
+}
+
+.game-stat { text-align: center; min-width: 60px; }
+.game-stat-label { font-size: 0.65rem; color: var(--muted); letter-spacing: 1px; }
+.game-stat-val {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--yellow);
+  text-shadow: 0 0 8px rgba(255,215,0,0.4);
+}
+
+.game-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.game-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 16px;
+  gap: 20px;
+}
+
+/* === Game Canvas === */
+canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* === Modal === */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 36px 40px;
+  text-align: center;
+  max-width: 360px;
+  width: 90%;
+  box-shadow: 0 0 60px rgba(0,255,255,0.1);
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  color: var(--cyan);
+  letter-spacing: 3px;
+  margin-bottom: 8px;
+  text-shadow: 0 0 15px var(--cyan);
+}
+
+.modal-score {
+  font-size: 2.5rem;
+  color: var(--yellow);
+  font-weight: bold;
+  margin: 16px 0;
+  text-shadow: 0 0 15px rgba(255,215,0,0.5);
+}
+
+.modal-score-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 2px;
+  margin-bottom: 24px;
+}
+
+.modal-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+/* === Tetris Sidebar === */
+.tetris-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 140px;
+}
+
+.sidebar-box {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.sidebar-box-title {
+  font-size: 0.68rem;
+  color: var(--muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.sidebar-val {
+  font-size: 1.4rem;
+  color: var(--yellow);
+  font-weight: bold;
+}
+
+/* === Controls legend === */
+.controls-legend {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.ctrl-key {
+  display: inline-block;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--text);
+  font-size: 0.72rem;
+  margin-right: 4px;
+}
+
+/* === Canvas styles === */
 #mainCanvas {
   border: 1px solid rgba(0,255,255,0.3);
   box-shadow: 0 0 30px rgba(0,255,255,0.1);
@@ -16,7 +260,12 @@
   background: #050510;
   display: block;
 }
-.ghost-row { opacity: 0.25; }
+
+/* === Responsive === */
+@media (max-width: 640px) {
+  .game-stats { gap: 10px; }
+  .game-stat-val { font-size: 1rem; }
+}
 </style>
 </head>
 <body class="game-page">
@@ -86,7 +335,7 @@
     <div class="modal-title" id="modalTitle">GAME OVER</div>
     <div class="modal-score" id="modalScore">0</div>
     <div class="modal-score-label">SCORE</div>
-    <div id="newRecordMsg" style="color:var(--green);font-size:0.85rem;margin-bottom:8px;display:none;">
+    <div id="newRecordMsg" style="color:#00ff88;font-size:0.85rem;margin-bottom:8px;display:none;">
       🏆 신기록 달성!
     </div>
     <div class="modal-btns">
@@ -96,11 +345,9 @@
   </div>
 </div>
 
-<script src="../data/db.js"></script>
-<script src="../js/app.js"></script>
 <script>
 /* ============================================================
-   TETRIS ENGINE
+   TETRIS ENGINE  (standalone — 인증 없이 독립 실행)
    ============================================================ */
 
 const COLS = 10, ROWS = 20, CELL = 30;
@@ -122,8 +369,28 @@ const PIECES = [
 let board, cur, curX, curY, nextPiece;
 let score, level, lines, gameOver, paused;
 let dropTimer, dropInterval;
-let username = '';
 
+/* ---- 점수 포맷 ---- */
+function formatScore(n) {
+  return Number(n).toLocaleString();
+}
+
+/* ---- localStorage 베스트 기록 ---- */
+const STORAGE_BEST_SCORE = 'tetris1_bestScore';
+const STORAGE_BEST_LINES = 'tetris1_bestLines';
+
+function getBestScore() { return parseInt(localStorage.getItem(STORAGE_BEST_SCORE) || '0', 10); }
+function getBestLines()  { return parseInt(localStorage.getItem(STORAGE_BEST_LINES) || '0', 10); }
+
+function saveBestScore(s) {
+  if (s > getBestScore()) { localStorage.setItem(STORAGE_BEST_SCORE, s); return true; }
+  return false;
+}
+function saveBestLines(l) {
+  if (l > getBestLines()) { localStorage.setItem(STORAGE_BEST_LINES, l); }
+}
+
+/* ---- 초기화 ---- */
 function init() {
   board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
   score = 0; level = 1; lines = 0;
@@ -135,6 +402,7 @@ function init() {
   dropInterval = 800;
   dropTimer = setInterval(tick, dropInterval);
   document.getElementById('modal').style.display = 'none';
+  document.getElementById('pauseBtn').textContent = '⏸ 일시정지';
 }
 
 function randomPiece() {
@@ -346,35 +614,25 @@ function restartGame() {
    GAME OVER / SAVE SCORE
    ============================================================ */
 function showModal() {
-  const session = Auth.getSession();
-  if (session) {
-    GameDB.addScore(session.username, 'tetris', score);
-    const best = GameDB.getUserBest(session.username, 'tetris');
-    if (score >= best) {
-      document.getElementById('newRecordMsg').style.display = 'block';
-    }
-  }
+  const isNewRecord = saveBestScore(score);
+  saveBestLines(lines);
+
+  // 사이드바 베스트 업데이트
+  document.getElementById('bestScore').textContent = formatScore(getBestScore());
+  document.getElementById('bestLines').textContent = getBestLines();
+
+  document.getElementById('newRecordMsg').style.display = isNewRecord ? 'block' : 'none';
   document.getElementById('modalScore').textContent = formatScore(score);
   document.getElementById('modal').style.display = 'flex';
   draw();
 }
 
 /* ============================================================
-   INIT
+   START
    ============================================================ */
-async function start() {
-  await GameDB.init();
-  const session = Auth.requireAuth();
-  if (!session) return;
-  username = session.username;
-
-  const best = GameDB.getUserBest(username, 'tetris');
-  document.getElementById('bestScore').textContent = formatScore(best);
-  document.getElementById('bestLines').textContent =
-    GameDB._getScores().filter(s => s.game === 'tetris' && s.username === username).length
-      ? '–'
-      : '0';
-
+function start() {
+  document.getElementById('bestScore').textContent = formatScore(getBestScore());
+  document.getElementById('bestLines').textContent = getBestLines();
   init();
   draw();
 }

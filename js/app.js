@@ -1,57 +1,35 @@
 /* ============================================================
    GamePortal - Core Library  (js/app.js)
+   v1.2  2026-06-06  본명·승인 시스템 추가, users.db 제거
    ============================================================ */
 
 // ──────────────────────────────────────────────
 //  Path helper
+//  사용: 전 페이지 — file:// 환경 상대 경로 계산
 // ──────────────────────────────────────────────
 function basePath() {
   return window.location.pathname.includes('/games/') ? '../' : './';
 }
 
 // ──────────────────────────────────────────────
-//  GameDB  –  localStorage + .db file
+//  GameDB  –  localStorage (+ data/db.js 백업 연동)
+//  사용: 전 페이지 — 사용자 계정·점수 관리
+//        data/db.js 백업은 localStorage 가 비어있을 때만 로드됨
 // ──────────────────────────────────────────────
 const GameDB = {
 
   /* ---------- init ---------- */
   async init() {
-    // 1순위: users.db.js 에 내장된 데이터 (file:// 환경에서도 동작)
-    if (window.USERS_DB && !localStorage.getItem('gp_db_loaded')) {
-      const existing = this._getUsers();
-      const merged = [...existing];
-      (window.USERS_DB.users || []).forEach(u => {
-        if (!merged.find(e => e.username === u.username)) {
-          merged.push({ username: u.username, password: u.password, role: u.role || 'user' });
-        }
-      });
-      this._setUsers(merged);
-      localStorage.setItem('gp_db_loaded', '1');
+    // localStorage 가 비어있고 data/db.js 백업이 있으면 전체 복원
+    // (localStorage 에 데이터가 있으면 백업 파일은 완전히 무시됨)
+    if (this._getUsers().length === 0 && window.GAMEDB_BACKUP) {
+      const { users = [], scores = [] } = window.GAMEDB_BACKUP;
+      if (users.length)  this._setUsers(users);
+      if (scores.length) localStorage.setItem('gp_scores', JSON.stringify(scores));
     }
-
-    // 2순위: HTTP 서버 환경에서 users.db fetch 시도
-    if (!localStorage.getItem('gp_db_loaded')) {
-      try {
-        const res = await fetch(basePath() + 'data/users.db');
-        if (res.ok) {
-          const data = await res.json();
-          const existing = this._getUsers();
-          const merged = [...existing];
-          (data.users || []).forEach(u => {
-            if (!merged.find(e => e.username === u.username)) {
-              merged.push({ username: u.username, password: u.password, role: u.role || 'user' });
-            }
-          });
-          this._setUsers(merged);
-          localStorage.setItem('gp_db_loaded', '1');
-        }
-      } catch (_) { /* fetch 실패 — 무시 */ }
-    }
-
-    // 계정이 하나도 없으면 기본 admin 생성
-    const users = this._getUsers();
-    if (users.length === 0) {
-      this._setUsers([{ username: 'admin', password: 'admin', role: 'admin' }]);
+    // 그래도 계정이 없으면 기본 admin 생성
+    if (this._getUsers().length === 0) {
+      this._setUsers([{ username: 'admin', password: 'admin', role: 'admin', approved: true }]);
     }
   },
 
@@ -67,13 +45,15 @@ const GameDB = {
 
   validateUser(username, password) {
     const u = this.getUser(username);
-    return u && u.password === password;
+    if (!u || u.password !== password) return false;
+    if (u.approved === false) return 'pending'; // 명시적 false 만 차단 (기존 계정 호환)
+    return true;
   },
 
-  addUser(username, password) {
+  addUser(username, password, fullname = '') {
     const users = this._getUsers();
     if (users.find(u => u.username === username)) return false;
-    users.push({ username, password, role: 'user', created: new Date().toISOString() });
+    users.push({ username, password, fullname: fullname.trim(), role: 'user', approved: false, created: new Date().toISOString() });
     this._setUsers(users);
     return true;
   },
@@ -81,6 +61,43 @@ const GameDB = {
   removeUser(username) {
     const users = this._getUsers().filter(u => u.username !== username);
     this._setUsers(users);
+  },
+
+  /* ---------- approval ---------- */
+  getPendingUsers() {
+    return this._getUsers().filter(u => u.approved === false);
+  },
+
+  approveUser(username) {
+    this._setUsers(this._getUsers().map(u =>
+      u.username === username ? { ...u, approved: true } : u
+    ));
+  },
+
+  /* ---------- backup ---------- */
+  // 계정 + 점수 전체를 data/db.js 형식으로 다운로드
+  // 사용: admin.html (백업 다운로드 버튼)
+  exportFullDB() {
+    const users  = this._getUsers();
+    const scores = JSON.parse(localStorage.getItem('gp_scores') || '[]');
+    const ts     = new Date().toLocaleString('ko-KR');
+    const content =
+      `// GameHub DB 백업 — ${ts}\n` +
+      `// data/db.js 로 저장하면 localStorage 초기화 시 자동 복원됩니다.\n` +
+      `window.GAMEDB_BACKUP = ${JSON.stringify({ users, scores }, null, 2)};\n`;
+    const a   = document.createElement('a');
+    a.href    = URL.createObjectURL(new Blob([content], { type: 'text/javascript' }));
+    a.download = 'db.js';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
+  },
+
+  /* ---------- display name ---------- */
+  getDisplayName(username) {
+    const u = this.getUser(username);
+    return (u && u.fullname) ? u.fullname : username;
   },
 
   /* ---------- scores ---------- */
@@ -114,7 +131,7 @@ const GameDB = {
   },
 
   getAllGamesBest(username) {
-    const games = ['tetris', 'snake', 'breakout', 'memory'];
+    const games = ['tetris', 'snake', 'breakout', 'memory', 'dino', '1010'];
     const out = {};
     games.forEach(g => { out[g] = this.getUserBest(username, g); });
     return out;
@@ -124,58 +141,20 @@ const GameDB = {
     return new Set(this._getScores().map(s => s.username)).size;
   },
 
-  /* ---------- export / import .db ---------- */
-  exportDB() {
-    const users = this._getUsers();
-    const blob = new Blob(
-      [JSON.stringify({ users }, null, 2)],
-      { type: 'text/plain' }
-    );
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'users.db';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(a.href);
-  },
-
-  importDB(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = e => {
-        try {
-          const data = JSON.parse(e.target.result);
-          if (!Array.isArray(data.users)) throw new Error('Invalid format');
-          const existing = this._getUsers();
-          const merged = [...existing];
-          let added = 0;
-          data.users.forEach(u => {
-            if (!merged.find(e => e.username === u.username)) {
-              merged.push({ username: u.username, password: u.password, role: u.role || 'user' });
-              added++;
-            }
-          });
-          this._setUsers(merged);
-          resolve(added);
-        } catch (err) { reject(err); }
-      };
-      reader.onerror = () => reject(new Error('Read error'));
-      reader.readAsText(file);
-    });
-  }
 };
 
 // ──────────────────────────────────────────────
 //  Auth
+//  사용: 전 페이지 — 로그인 세션 및 권한 관리
 // ──────────────────────────────────────────────
 const Auth = {
   login(username, password) {
-    if (GameDB.validateUser(username, password)) {
+    const check = GameDB.validateUser(username, password);
+    if (check === true) {
       sessionStorage.setItem('gp_session', JSON.stringify({ username, loginTime: Date.now() }));
       return true;
     }
-    return false;
+    return check; // false 또는 'pending'
   },
 
   logout() {
@@ -204,6 +183,7 @@ const Auth = {
 
 // ──────────────────────────────────────────────
 //  UI helpers
+//  사용: 전 페이지 — 알림 표시, 점수 포맷, 날짜 포맷
 // ──────────────────────────────────────────────
 function showAlert(container, msg, type = 'error') {
   const existing = container.querySelector('.alert');
@@ -225,7 +205,8 @@ function formatDate(iso) {
 }
 
 // ──────────────────────────────────────────────
-//  Navbar builder (used by dashboard / leaderboard)
+//  Navbar builder
+//  사용: dashboard.html, leaderboard.html, admin.html
 // ──────────────────────────────────────────────
 function buildNavbar(activePage) {
   const session = Auth.getSession();
@@ -248,10 +229,13 @@ function buildNavbar(activePage) {
 
 // ──────────────────────────────────────────────
 //  Game names
+//  사용: leaderboard.html (탭·표 제목), admin.html (합산 점수)
 // ──────────────────────────────────────────────
 const GAME_NAMES = {
   tetris:   '테트리스',
   snake:    '스네이크',
   breakout: '브레이크아웃',
-  memory:   '메모리 매치'
+  memory:   '메모리 매치',
+  dino:     '공룡 달리기',
+  '1010':   '1010!',
 };
