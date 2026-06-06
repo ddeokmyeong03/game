@@ -3,14 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GameHub - 브레이크아웃</title>
+<title>GameHub - 스와이프 벽돌깨기</title>
 <link rel="stylesheet" href="../css/style.css">
 <style>
 #boCanvas {
   border: 1px solid rgba(255,136,0,0.3);
   box-shadow: 0 0 30px rgba(255,136,0,0.08);
   background: #050510;
-  cursor: none;
+  display: block;
+  cursor: crosshair;
+  max-width: 100%;
 }
 </style>
 </head>
@@ -19,7 +21,7 @@
 <div class="game-topbar">
   <div class="game-topbar-left">
     <a href="../dashboard.html" class="game-topbar-back">← 대시보드</a>
-    <span class="game-topbar-title">BREAKOUT</span>
+    <span class="game-topbar-title">BRICK BREAKER</span>
   </div>
   <div class="game-stats">
     <div class="game-stat">
@@ -27,56 +29,41 @@
       <div class="game-stat-val" id="statScore">0</div>
     </div>
     <div class="game-stat">
-      <div class="game-stat-label">LIVES</div>
-      <div class="game-stat-val" id="statLives">❤❤❤</div>
+      <div class="game-stat-label">TURN</div>
+      <div class="game-stat-val" id="statTurn">1</div>
     </div>
     <div class="game-stat">
-      <div class="game-stat-label">LEVEL</div>
-      <div class="game-stat-val" id="statLevel">1</div>
+      <div class="game-stat-label">BALLS</div>
+      <div class="game-stat-val" id="statBalls">1</div>
     </div>
   </div>
   <div class="game-controls">
     <button class="btn btn-ghost btn-sm" id="pauseBtn" onclick="togglePause()">⏸ 일시정지</button>
+    <button class="btn btn-ghost btn-sm" onclick="restartGame()">↺ 재시작</button>
   </div>
 </div>
 
 <div class="game-area">
-  <canvas id="boCanvas" width="480" height="520"></canvas>
+  <canvas id="boCanvas" width="360" height="580"></canvas>
 
   <div class="tetris-sidebar">
     <div class="sidebar-box">
       <div class="sidebar-box-title">BEST</div>
       <div class="sidebar-val" id="bestScore">0</div>
     </div>
-
     <div class="controls-legend">
-      <div><span class="ctrl-key">← →</span> 패들 이동</div>
-      <div><span class="ctrl-key">마우스</span> 패들 조작</div>
-      <div><span class="ctrl-key">SPACE</span> 공 발사</div>
+      <div><span class="ctrl-key">마우스</span> 조준</div>
+      <div><span class="ctrl-key">클릭</span> 발사</div>
       <div><span class="ctrl-key">P</span> 일시정지</div>
     </div>
-
-    <div class="sidebar-box" style="font-size:0.75rem;color:var(--muted);line-height:1.8;">
-      <div class="sidebar-box-title">점수표</div>
-      <div style="color:#ff4466">■ 빨강: 10pt</div>
-      <div style="color:#ff8800">■ 주황: 20pt</div>
-      <div style="color:#ffd700">■ 노랑: 30pt</div>
-      <div style="color:#00ff88">■ 초록: 40pt</div>
-      <div style="color:#4488ff">■ 파랑: 50pt</div>
-    </div>
-  </div>
-</div>
-
-<!-- Start Modal -->
-<div class="modal-overlay" id="startModal">
-  <div class="modal-box">
-    <div class="modal-title">BREAKOUT</div>
-    <div style="color:var(--muted);font-size:0.85rem;margin:16px 0;line-height:1.6;">
-      패들로 공을 튕겨 모든 벽돌을 깨세요!<br>
-      마우스 또는 화살표키로 조작합니다.
-    </div>
-    <div class="modal-btns">
-      <button class="btn btn-primary" onclick="startGame()">▸ 시작</button>
+    <div class="sidebar-box" style="font-size:0.73rem;color:var(--muted);line-height:2;">
+      <div class="sidebar-box-title">안내</div>
+      <div>● = 공 추가 아이템</div>
+      <div style="color:#4488ff">■ 파랑: 약함</div>
+      <div style="color:#00cc88">■ 초록</div>
+      <div style="color:#ffd700">■ 노랑</div>
+      <div style="color:#ff8800">■ 주황</div>
+      <div style="color:#ff4466">■ 빨강: 강함</div>
     </div>
   </div>
 </div>
@@ -84,14 +71,12 @@
 <!-- Game Over Modal -->
 <div class="modal-overlay" id="modal" style="display:none;">
   <div class="modal-box">
-    <div class="modal-title" id="modalTitle">GAME OVER</div>
+    <div class="modal-title">GAME OVER</div>
     <div class="modal-score" id="modalScore">0</div>
-    <div class="modal-score-label">SCORE</div>
-    <div id="newRecordMsg" style="color:var(--green);font-size:0.85rem;margin-bottom:8px;display:none;">
-      🏆 신기록 달성!
-    </div>
+    <div class="modal-score-label">SCORE &nbsp;|&nbsp; BEST: <span id="modalBest">0</span></div>
+    <div id="newRecordMsg" style="color:var(--green);font-size:0.85rem;margin-bottom:8px;display:none;">🏆 신기록!</div>
     <div class="modal-btns">
-      <button class="btn btn-primary" onclick="restartGame()">▸ 다시하기</button>
+      <button class="btn btn-primary" onclick="restartGame()">↺ 다시하기</button>
       <a href="../dashboard.html" class="btn btn-ghost">대시보드</a>
     </div>
   </div>
@@ -101,276 +86,470 @@
 <script src="../js/app.js"></script>
 <script>
 const canvas = document.getElementById('boCanvas');
-const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
+const ctx    = canvas.getContext('2d');
+const W = canvas.width;   // 360
+const H = canvas.height;  // 580
 
-// Paddle
-const PAD_H = 12, PAD_W = 80;
-let padX;
+// ── Grid config ──────────────────────────────────
+const COLS     = 7;
+const BRICK_W  = 46;
+const BRICK_H  = 24;
+const GAP      = 4;
+const OFFSET_X = (W - COLS * (BRICK_W + GAP) + GAP) / 2;
+const OFFSET_Y = 20;
+const MAX_ROWS = 12;   // game over when brick reaches this row index
 
-// Ball
-const BALL_R = 7;
-let ballX, ballY, ballDX, ballDY;
-let launched;
+// ── Ball config ──────────────────────────────────
+const BALL_R    = 7;
+const BALL_SPD  = 11;
+const FLOOR_Y   = H - 48;
+const BALL_DELAY = 5;   // frames between successive ball launches
 
-// Bricks
-const BRICK_ROWS = 6, BRICK_COLS = 10;
-const BRICK_W = 44, BRICK_H = 18, BRICK_GAP = 3;
-const BRICK_OFFSET_X = 6, BRICK_OFFSET_Y = 50;
-let bricks;
+// ── Game state ───────────────────────────────────
+let phase;        // 'aim' | 'shooting' | 'dropping'
+let bricks;       // [{col, row, hp, maxHp}]
+let items;        // [{col, row}]  — +ball pickup items
+let balls;        // [{x, y, dx, dy, active, done}]
+let ballCount, launchX, aimAngle;
+let score, turn, paused, gameActive;
+let launchQueue, launchTimer, firstLandX, addBallsNext, dropDelay;
+let raf;
 
-const BRICK_COLORS = ['#4488ff', '#00ff88', '#ffd700', '#ff8800', '#ff4466', '#cc00ff'];
-const BRICK_SCORES = [50, 40, 30, 20, 10, 15];
+// ── Color by HP ratio ────────────────────────────
+function hpColor(hp, maxHp) {
+  const r = hp / maxHp;
+  if (r > 0.75) return '#4488ff';
+  if (r > 0.50) return '#00cc88';
+  if (r > 0.30) return '#ffd700';
+  if (r > 0.12) return '#ff8800';
+  return '#ff4466';
+}
 
-// Game state
-let score, lives, level, gameRunning, paused;
-let keys = {};
+// ── Grid helpers ─────────────────────────────────
+function brickRect(col, row) {
+  return {
+    x: OFFSET_X + col * (BRICK_W + GAP),
+    y: OFFSET_Y + row * (BRICK_H + GAP),
+    w: BRICK_W, h: BRICK_H
+  };
+}
 
-function initLevel() {
-  padX = W / 2 - PAD_W / 2;
-  ballX = W / 2;
-  ballY = H - 60;
-  const spd = 3.5 + (level - 1) * 0.4;
-  const angle = (Math.random() * 60 - 30) * Math.PI / 180;
-  ballDX = spd * Math.sin(angle);
-  ballDY = -spd * Math.cos(angle);
-  launched = false;
+// ── Spawn a new top row ───────────────────────────
+function spawnRow() {
+  const base   = Math.ceil(turn * 1.3);
+  const spread = Math.ceil(base * 0.4);
 
-  bricks = [];
-  for (let r = 0; r < BRICK_ROWS; r++) {
-    bricks[r] = [];
-    for (let c = 0; c < BRICK_COLS; c++) {
-      bricks[r][c] = {
-        alive: true,
-        color: BRICK_COLORS[r % BRICK_COLORS.length],
-        score: BRICK_SCORES[r % BRICK_SCORES.length]
-      };
-    }
+  // shuffle column indices
+  const cols = Array.from({ length: COLS }, (_, i) => i);
+  for (let i = cols.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cols[i], cols[j]] = [cols[j], cols[i]];
+  }
+
+  const brickCount = 4 + Math.floor(Math.random() * 3); // 4–6
+  for (let i = 0; i < brickCount; i++) {
+    const hp = Math.max(1, base + Math.floor(Math.random() * spread));
+    bricks.push({ col: cols[i], row: 0, hp, maxHp: hp });
+  }
+  // ~55% chance of a +ball item in a remaining slot
+  if (Math.random() < 0.55 && cols[brickCount] !== undefined) {
+    items.push({ col: cols[brickCount], row: 0 });
   }
 }
 
-function startGame() {
-  document.getElementById('startModal').style.display = 'none';
-  score = 0; lives = 3; level = 1;
-  initLevel();
-  gameRunning = true;
+// ── Drop all bricks one row ───────────────────────
+function dropBricks() {
+  bricks.forEach(b  => b.row++);
+  items.forEach(it  => it.row++);
+  items = items.filter(it => it.row < MAX_ROWS);
+}
+
+function checkGameOver() {
+  return bricks.some(b => b.row >= MAX_ROWS);
+}
+
+// ── Circle-Rect collision ────────────────────────
+function circleRect(cx, cy, r, rx, ry, rw, rh) {
+  const nx = Math.max(rx, Math.min(cx, rx + rw));
+  const ny = Math.max(ry, Math.min(cy, ry + rh));
+  return (cx - nx) ** 2 + (cy - ny) ** 2 < r * r;
+}
+
+// ── Init ─────────────────────────────────────────
+function initGame() {
+  bricks = []; items = []; balls = [];
+  ballCount   = 1;
+  launchX     = W / 2;
+  aimAngle    = 0;          // straight up
+  score       = 0;
+  turn        = 1;
+  paused      = false;
+  gameActive  = true;
+  firstLandX  = null;
+  addBallsNext = 0;
+  phase       = 'aim';
+  cancelAnimationFrame(raf);
+  spawnRow();
   updateStats();
-  requestAnimationFrame(loop);
+  raf = requestAnimationFrame(loop);
 }
 
 function restartGame() {
   document.getElementById('modal').style.display = 'none';
-  startGame();
+  initGame();
 }
 
-let prevTime = 0;
-function loop(ts) {
-  if (!gameRunning) return;
-  const dt = Math.min(ts - prevTime, 32);
-  prevTime = ts;
-  if (!paused) update(dt);
+// ── Main loop ────────────────────────────────────
+function loop() {
+  if (!gameActive) return;
+  if (!paused) {
+    if (phase === 'shooting') updateShooting();
+    if (phase === 'dropping') updateDropping();
+  }
   draw();
-  requestAnimationFrame(loop);
+  raf = requestAnimationFrame(loop);
 }
 
-function update(dt) {
-  // Paddle controls
-  if (keys['ArrowLeft'] || keys['a']) padX = Math.max(0, padX - 6);
-  if (keys['ArrowRight'] || keys['d']) padX = Math.min(W - PAD_W, padX + 6);
-
-  if (!launched) {
-    ballX = padX + PAD_W / 2;
-    return;
-  }
-
-  // Move ball
-  ballX += ballDX;
-  ballY += ballDY;
-
-  // Wall bounces
-  if (ballX - BALL_R < 0) { ballX = BALL_R; ballDX = Math.abs(ballDX); }
-  if (ballX + BALL_R > W) { ballX = W - BALL_R; ballDX = -Math.abs(ballDX); }
-  if (ballY - BALL_R < 0) { ballY = BALL_R; ballDY = Math.abs(ballDY); }
-
-  // Paddle collision
-  if (
-    ballY + BALL_R >= H - 40 - PAD_H &&
-    ballY + BALL_R <= H - 40 &&
-    ballX >= padX - 2 &&
-    ballX <= padX + PAD_W + 2
-  ) {
-    ballDY = -Math.abs(ballDY);
-    // Angle based on hit position
-    const rel = (ballX - padX) / PAD_W - 0.5;
-    ballDX = rel * 7;
-    ballY = H - 40 - PAD_H - BALL_R;
-  }
-
-  // Ball out
-  if (ballY - BALL_R > H) {
-    lives--;
-    if (lives <= 0) {
-      doGameOver(false);
-    } else {
-      initLevel();
-      // Re-use same score and level
-      launched = false;
+// ── Shooting update ───────────────────────────────
+function updateShooting() {
+  // launch next ball
+  if (launchQueue > 0) {
+    launchTimer--;
+    if (launchTimer <= 0) {
+      const idx = ballCount - launchQueue;
+      const b   = balls[idx];
+      b.dx = Math.sin(aimAngle) * BALL_SPD;
+      b.dy = -Math.cos(aimAngle) * BALL_SPD;
+      b.active = true;
+      launchQueue--;
+      launchTimer = BALL_DELAY;
     }
-    updateStats();
-    return;
   }
 
-  // Brick collision
-  for (let r = 0; r < BRICK_ROWS; r++) {
-    for (let c = 0; c < BRICK_COLS; c++) {
-      const b = bricks[r][c];
-      if (!b.alive) continue;
-      const bx = BRICK_OFFSET_X + c * (BRICK_W + BRICK_GAP);
-      const by = BRICK_OFFSET_Y + r * (BRICK_H + BRICK_GAP);
+  // move each active ball
+  for (const b of balls) {
+    if (!b.active || b.done) continue;
 
-      if (
-        ballX + BALL_R > bx && ballX - BALL_R < bx + BRICK_W &&
-        ballY + BALL_R > by && ballY - BALL_R < by + BRICK_H
-      ) {
-        b.alive = false;
-        score += b.score * level;
+    b.x += b.dx;
+    b.y += b.dy;
 
-        // Reflect
-        const overlapX = Math.min(ballX + BALL_R - bx, bx + BRICK_W - (ballX - BALL_R));
-        const overlapY = Math.min(ballY + BALL_R - by, by + BRICK_H - (ballY - BALL_R));
-        if (overlapX < overlapY) ballDX *= -1; else ballDY *= -1;
+    // wall / ceiling bounces
+    if (b.x - BALL_R < 0)  { b.x = BALL_R;     b.dx =  Math.abs(b.dx); }
+    if (b.x + BALL_R > W)  { b.x = W - BALL_R; b.dx = -Math.abs(b.dx); }
+    if (b.y - BALL_R < 0)  { b.y = BALL_R;      b.dy =  Math.abs(b.dy); }
 
-        updateStats();
+    // floor — ball stops here
+    if (b.y + BALL_R >= FLOOR_Y) {
+      b.y    = FLOOR_Y - BALL_R;
+      b.done = true;
+      if (firstLandX === null) firstLandX = b.x;
+      continue;
+    }
 
-        // Check win
-        if (bricks.every(row => row.every(b => !b.alive))) {
-          level++;
-          if (level > 5) {
-            doGameOver(true);
-          } else {
-            initLevel();
-          }
-        }
-        return;
+    // brick collision
+    for (let i = bricks.length - 1; i >= 0; i--) {
+      const br = bricks[i];
+      const r  = brickRect(br.col, br.row);
+      if (!circleRect(b.x, b.y, BALL_R, r.x, r.y, r.w, r.h)) continue;
+
+      // reflect off nearest axis
+      const overlapL = b.x - r.x;
+      const overlapR = r.x + r.w - b.x;
+      const overlapT = b.y - r.y;
+      const overlapB = r.y + r.h - b.y;
+      const minH = Math.min(overlapL, overlapR);
+      const minV = Math.min(overlapT, overlapB);
+      if (minH < minV) {
+        b.dx *= -1;
+        b.x  += (overlapL < overlapR) ? -(BALL_R - overlapL + 1) : (BALL_R - overlapR + 1);
+      } else {
+        b.dy *= -1;
+        b.y  += (overlapT < overlapB) ? -(BALL_R - overlapT + 1) : (BALL_R - overlapB + 1);
+      }
+
+      br.hp--;
+      score++;
+      if (br.hp <= 0) { bricks.splice(i, 1); score += 5; }
+      updateStats();
+      break; // one brick per frame per ball
+    }
+
+    // item pickup
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      const r  = brickRect(it.col, it.row);
+      const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+      if (Math.hypot(b.x - cx, b.y - cy) < BALL_R + r.w * 0.38) {
+        items.splice(i, 1);
+        addBallsNext++;
       }
     }
   }
+
+  // transition when all balls done
+  if (launchQueue === 0 && balls.every(b => b.done)) {
+    ballCount  += addBallsNext;
+    if (firstLandX !== null) {
+      launchX = Math.max(BALL_R + 4, Math.min(W - BALL_R - 4, firstLandX));
+    }
+    phase     = 'dropping';
+    dropDelay = 20;
+    updateStats();
+  }
 }
 
+// ── Dropping update ───────────────────────────────
+function updateDropping() {
+  dropDelay--;
+  if (dropDelay > 0) return;
+  dropBricks();
+  if (checkGameOver()) { endGame(); return; }
+  turn++;
+  spawnRow();
+  balls = [];
+  phase = 'aim';
+  updateStats();
+}
+
+// ── Aim guide trajectory ──────────────────────────
+function drawAimGuide() {
+  if (phase !== 'aim') return;
+  let x = launchX, y = FLOOR_Y - BALL_R;
+  let dx = Math.sin(aimAngle);
+  let dy = -Math.cos(aimAngle);
+  const step = 14;
+  const steps = 40;
+
+  for (let i = 0; i < steps; i++) {
+    x += dx * step;
+    y += dy * step;
+    if (x - BALL_R < 0)  { x = BALL_R;     dx =  Math.abs(dx); }
+    if (x + BALL_R > W)  { x = W - BALL_R; dx = -Math.abs(dx); }
+    if (y - BALL_R < 0)  { y = BALL_R;      dy =  Math.abs(dy); }
+    if (y >= FLOOR_Y) break;
+
+    ctx.globalAlpha = (1 - i / steps) * 0.55;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(x, y, i === 0 ? 3.5 : 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ── Draw ─────────────────────────────────────────
 function draw() {
   ctx.fillStyle = '#050510';
   ctx.fillRect(0, 0, W, H);
 
-  // Bricks
-  for (let r = 0; r < BRICK_ROWS; r++) {
-    for (let c = 0; c < BRICK_COLS; c++) {
-      const b = bricks[r][c];
-      if (!b.alive) continue;
-      const bx = BRICK_OFFSET_X + c * (BRICK_W + BRICK_GAP);
-      const by = BRICK_OFFSET_Y + r * (BRICK_H + BRICK_GAP);
-
-      ctx.fillStyle = b.color;
-      ctx.fillRect(bx, by, BRICK_W, BRICK_H);
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillRect(bx, by, BRICK_W, 3);
-      ctx.fillRect(bx, by, 3, BRICK_H);
-      ctx.fillStyle = 'rgba(0,0,0,0.2)';
-      ctx.fillRect(bx, by + BRICK_H - 3, BRICK_W, 3);
-    }
-  }
-
-  // Paddle
-  ctx.fillStyle = '#aaddff';
+  // floor line
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([]);
   ctx.beginPath();
-  ctx.roundRect(padX, H - 40 - PAD_H, PAD_W, PAD_H, 4);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.fillRect(padX + 4, H - 40 - PAD_H + 2, PAD_W - 8, 3);
+  ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y);
+  ctx.stroke();
 
-  // Ball
-  const grad = ctx.createRadialGradient(ballX - 2, ballY - 2, 1, ballX, ballY, BALL_R);
-  grad.addColorStop(0, '#ffffff');
-  grad.addColorStop(0.5, '#aaddff');
-  grad.addColorStop(1, '#4488ff');
-  ctx.fillStyle = grad;
+  // danger zone (bottom of last valid row)
+  const dangerY = OFFSET_Y + MAX_ROWS * (BRICK_H + GAP);
+  ctx.strokeStyle = 'rgba(255,60,60,0.25)';
+  ctx.setLineDash([5, 5]);
   ctx.beginPath();
-  ctx.arc(ballX, ballY, BALL_R, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(0, dangerY); ctx.lineTo(W, dangerY);
+  ctx.stroke();
+  ctx.setLineDash([]);
 
-  // Launch hint
-  if (!launched) {
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = '12px Courier New';
+  // bricks
+  for (const br of bricks) {
+    const r   = brickRect(br.col, br.row);
+    const col = hpColor(br.hp, br.maxHp);
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.roundRect(r.x, r.y, r.w, r.h, 4);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(r.x + 3, r.y + 2, r.w - 6, 4);
+
+    const fs = br.hp >= 100 ? 8 : br.hp >= 10 ? 10 : 12;
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${fs}px "Courier New"`;
     ctx.textAlign = 'center';
-    ctx.fillText('SPACE 또는 클릭으로 발사', W / 2, H - 15);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(br.hp, r.x + r.w / 2, r.y + r.h / 2);
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  // items
+  for (const it of items) {
+    const r  = brickRect(it.col, it.row);
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const rad = r.w * 0.36;
+    ctx.strokeStyle = '#aaffcc';
+    ctx.lineWidth   = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#aaffcc';
+    ctx.font = 'bold 13px "Courier New"';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('+', cx, cy + 1);
     ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
   }
 
-  // Pause
+  // aim guide
+  drawAimGuide();
+
+  // balls
+  for (const b of balls) {
+    if (!b.active) continue;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, BALL_R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(160,230,255,0.6)';
+    ctx.beginPath();
+    ctx.arc(b.x - 2, b.y - 2, BALL_R * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // launch position marker
+  if (phase === 'aim' || phase === 'dropping') {
+    // triangle arrow
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.beginPath();
+    ctx.moveTo(launchX, FLOOR_Y - BALL_R - 3);
+    ctx.lineTo(launchX - 7, FLOOR_Y + 7);
+    ctx.lineTo(launchX + 7, FLOOR_Y + 7);
+    ctx.closePath();
+    ctx.fill();
+    // ball count badge
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.beginPath();
+    ctx.arc(launchX, FLOOR_Y + 22, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px "Courier New"';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(ballCount, launchX, FLOOR_Y + 23);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // paused overlay
   if (paused) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillStyle = 'rgba(0,0,0,0.68)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#ff8800';
-    ctx.font = 'bold 28px Courier New';
+    ctx.font = 'bold 30px "Courier New"';
     ctx.textAlign = 'center';
     ctx.fillText('PAUSED', W / 2, H / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '13px "Courier New"';
+    ctx.fillText('P 키 또는 버튼으로 재개', W / 2, H / 2 + 28);
     ctx.textAlign = 'left';
   }
 }
 
-function updateStats() {
-  document.getElementById('statScore').textContent = formatScore(score);
-  document.getElementById('statLives').textContent = '❤'.repeat(Math.max(0, lives));
-  document.getElementById('statLevel').textContent = level;
+// ── Aim from pointer ──────────────────────────────
+function setAimFromPointer(px, py) {
+  if (phase !== 'aim') return;
+  const dy = py - FLOOR_Y;
+  if (dy >= -10) return; // must be above floor
+  let angle = Math.atan2(px - launchX, -dy);
+  const MAX_A = Math.PI * 80 / 180;
+  aimAngle = Math.max(-MAX_A, Math.min(MAX_A, angle));
 }
 
-function doGameOver(won) {
-  gameRunning = false;
+// ── Stats ────────────────────────────────────────
+function updateStats() {
+  document.getElementById('statScore').textContent = formatScore(score);
+  document.getElementById('statTurn').textContent  = turn;
+  document.getElementById('statBalls').textContent = ballCount;
+}
+
+// ── Fire ─────────────────────────────────────────
+function fire(py) {
+  if (!gameActive || paused || phase !== 'aim') return;
+  if (py >= FLOOR_Y - 10) return; // must click above floor
+  phase        = 'shooting';
+  launchQueue  = ballCount;
+  launchTimer  = 0;
+  firstLandX   = null;
+  addBallsNext = 0;
+  balls        = Array.from({ length: ballCount }, () => ({
+    x: launchX, y: FLOOR_Y - BALL_R,
+    dx: 0, dy: 0, active: false, done: false
+  }));
+}
+
+// ── End game ─────────────────────────────────────
+function endGame() {
+  gameActive = false;
+  cancelAnimationFrame(raf);
   const session = Auth.getSession();
   if (session) {
     GameDB.addScore(session.username, 'breakout', score);
     const best = GameDB.getUserBest(session.username, 'breakout');
     document.getElementById('bestScore').textContent = formatScore(best);
-    if (score >= best && score > 0) {
-      document.getElementById('newRecordMsg').style.display = 'block';
-    } else {
-      document.getElementById('newRecordMsg').style.display = 'none';
-    }
+    document.getElementById('modalBest').textContent = formatScore(best);
+    document.getElementById('newRecordMsg').style.display =
+      (score > 0 && score >= best) ? 'block' : 'none';
   }
-  document.getElementById('modalTitle').textContent = won ? 'CLEAR! 🎉' : 'GAME OVER';
   document.getElementById('modalScore').textContent = formatScore(score);
   document.getElementById('modal').style.display = 'flex';
 }
 
 function togglePause() {
-  if (!gameRunning) return;
+  if (!gameActive) return;
   paused = !paused;
   document.getElementById('pauseBtn').textContent = paused ? '▸ 재개' : '⏸ 일시정지';
 }
 
-/* ── Controls ── */
-document.addEventListener('keydown', e => {
-  keys[e.key] = true;
-  if (e.key === ' ') { e.preventDefault(); launched = true; }
-  if (e.key === 'p' || e.key === 'P') togglePause();
-});
-document.addEventListener('keyup', e => { keys[e.key] = false; });
-
+// ── Mouse / Touch input ───────────────────────────
 canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
-  padX = Math.max(0, Math.min(W - PAD_W,
-    (e.clientX - rect.left) * (W / rect.width) - PAD_W / 2
-  ));
+  setAimFromPointer(
+    (e.clientX - rect.left) * (W / rect.width),
+    (e.clientY - rect.top)  * (H / rect.height)
+  );
 });
-canvas.addEventListener('click', () => { launched = true; });
 
-/* ── Init ── */
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  fire((e.clientY - rect.top) * (H / rect.height));
+});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0], rect = canvas.getBoundingClientRect();
+  setAimFromPointer(
+    (t.clientX - rect.left) * (W / rect.width),
+    (t.clientY - rect.top)  * (H / rect.height)
+  );
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0], rect = canvas.getBoundingClientRect();
+  fire((t.clientY - rect.top) * (H / rect.height));
+}, { passive: false });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'p' || e.key === 'P') togglePause();
+});
+
+// ── Init ─────────────────────────────────────────
 async function start() {
   await GameDB.init();
   const session = Auth.requireAuth();
   if (!session) return;
-  const best = GameDB.getUserBest(session.username, 'breakout');
-  document.getElementById('bestScore').textContent = formatScore(best);
+  document.getElementById('bestScore').textContent =
+    formatScore(GameDB.getUserBest(session.username, 'breakout'));
+  initGame();
 }
 start();
 </script>

@@ -47,6 +47,7 @@
     </div>
   </div>
   <div class="game-controls">
+    <button class="btn btn-ghost btn-sm" id="pauseBtn" onclick="togglePause()" style="display:none;">⏸ 일시정지</button>
     <button class="btn btn-ghost btn-sm" onclick="restartGame()">↺ 재시작</button>
   </div>
 </div>
@@ -423,6 +424,8 @@ function startGame() {
   obstacles      = [];
   nextObstacleIn = 90;
   document.getElementById('gameOverModal').style.display = 'none';
+  document.getElementById('pauseBtn').style.display = '';
+  document.getElementById('pauseBtn').textContent = '⏸ 일시정지';
   resetDino();
   gameLoop();
 }
@@ -441,10 +444,34 @@ function gameLoop() {
   if (state === 'running') raf = requestAnimationFrame(gameLoop);
 }
 
+function togglePause() {
+  if (state === 'running') {
+    state = 'paused';
+    cancelAnimationFrame(raf);
+    // 현재 프레임을 그대로 두고 pause overlay만 표시
+    drawBg(); drawObstacles(); drawDino();
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#00ffff';
+    ctx.font = 'bold 32px "Courier New"';
+    ctx.textAlign = 'center';
+    ctx.fillText('PAUSED', W/2, H/2 - 6);
+    ctx.fillStyle = '#7777aa';
+    ctx.font = '14px "Courier New"';
+    ctx.fillText('P 또는 버튼으로 재개', W/2, H/2 + 22);
+    ctx.textAlign = 'left';
+    document.getElementById('pauseBtn').textContent = '▸ 재개';
+  } else if (state === 'paused') {
+    state = 'running';
+    document.getElementById('pauseBtn').textContent = '⏸ 일시정지';
+    gameLoop();
+  }
+}
+
 // ── Input ──────────────────────────────────────────
 function doJump() {
   if (state === 'idle')    { startGame(); return; }
-  if (state === 'dead')    return;
+  if (state === 'dead' || state === 'paused') return;
   if (dino.onGround && !dino.ducking) {
     dino.vy       = JUMP_VEL;
     dino.onGround = false;
@@ -470,6 +497,7 @@ function doDuckEnd() {
 }
 
 document.addEventListener('keydown', e => {
+  if (e.code === 'KeyP') { togglePause(); return; }
   if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); doJump(); }
   if (e.code === 'ArrowDown')                      { e.preventDefault(); doDuckStart(); }
 });

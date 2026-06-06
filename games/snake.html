@@ -282,9 +282,9 @@ function draw() {
   }
 }
 
-// Redraw food pulse animation
+// Redraw food pulse animation (paused일 때도 draw 호출 → pause overlay 표시)
 function animLoop() {
-  if (gameRunning && !paused) draw();
+  if (gameRunning) draw();
   requestAnimationFrame(animLoop);
 }
 
