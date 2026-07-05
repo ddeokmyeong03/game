@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GameHub - 익명 게시판</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div class="container">
+  <div class="page-header">
+    <div class="page-title">익명 게시판</div>
+    <div class="page-subtitle">로그인된 사용자만 작성 가능하며, 작성자 정보는 서버 로그와 게시글 데이터에 함께 남습니다</div>
+  </div>
+
+  <div id="alertArea"></div>
+
+  <div class="board-shell">
+    <div class="card">
+      <div class="section-header">
+        <span class="section-title">▸ 최근 글</span>
+        <span class="section-count" id="postCount">0개</span>
+      </div>
+      <div id="postList" class="board-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-header">
+        <span class="section-title">▸ 새 글 작성</span>
+      </div>
+      <form id="boardForm" onsubmit="submitBoardPost(event)">
+        <div class="form-group">
+          <label class="form-label">제목</label>
+          <input type="text" id="boardTitle" class="form-input" maxlength="40" placeholder="제목을 입력하세요" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">내용</label>
+          <textarea id="boardContent" class="form-input board-textarea" placeholder="여러분의 의견을 남겨보세요" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">✉ 게시하기</button>
+      </form>
+      <div class="board-hint">
+        작성된 글은 로그인된 사용자만 남길 수 있고, 서버의 로그 파일에 작성자 정보가 기록됩니다.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="data/db.js"></script>
+<script src="js/app.js"></script>
+<script>
+async function init() {
+  await GameDB.init();
+  const session = Auth.requireAuth();
+  if (!session) return;
+  buildNavbar('board');
+  renderBoardPosts();
+}
+
+async function renderBoardPosts() {
+  const list = document.getElementById('postList');
+  try {
+    const resp = await fetch('/api/board/posts', {
+      headers: { 'x-user': Auth.getSession()?.username || '' }
+    });
+    const data = await resp.json();
+    const posts = Array.isArray(data.posts) ? data.posts : [];
+    posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    window.__boardPosts = posts;
+    document.getElementById('postCount').textContent = `${posts.length}개`;
+
+    if (!posts.length) {
+      list.innerHTML = '<div class="board-empty">아직 게시글이 없습니다. 첫 글을 남겨보세요.</div>';
+      return;
+    }
+
+    list.innerHTML = posts.map(post => `
+      <div class="board-card">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+          <div class="board-card-title">${escapeHtml(post.title)}</div>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openBoardPost('${post.id}')">더보기</button>
+        </div>
+        <div class="board-card-content">${escapeHtml(post.content)}</div>
+        <div class="board-card-meta">
+          <span>${formatDate(post.createdAt)} · ${escapeHtml(post.authorFullname || post.authorUsername || '익명')}</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            ${Auth.isAdmin() ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteBoardPost('${post.id}')">삭제</button>` : ''}
+            ${Auth.isAdmin() || post.authorUsername === Auth.getSession()?.username ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); editBoardPost('${post.id}')">수정</button>` : ''}
+          </div>
+        </div>
+        ${Array.isArray(post.comments) && post.comments.length ? `
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">
+            ${post.comments.map(comment => `
+              <div style="font-size:0.8rem;color:var(--muted);margin-bottom:6px;">• ${escapeHtml(comment.content)} <span style="color:var(--cyan);">(${escapeHtml(comment.authorFullname || comment.authorUsername || '익명')})</span></div>
+            `).join('')}
+          </div>
+        ` : ''}
+        <div style="margin-top:10px;">
+          <input id="comment-${post.id}" class="form-input" placeholder="댓글 추가" />
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="event.stopPropagation(); submitComment('${post.id}')">댓글 작성</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (error) {
+    list.innerHTML = '<div class="board-empty">게시글을 불러오지 못했습니다.</div>';
+  }
+}
+
+async function submitBoardPost(e) {
+  e.preventDefault();
+  const title = document.getElementById('boardTitle').value;
+  const content = document.getElementById('boardContent').value;
+  const area = document.getElementById('alertArea');
+
+  try {
+    const session = Auth.getSession();
+    const resp = await fetch('/api/board/posts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user': session?.username || ''
+      },
+      body: JSON.stringify({ title, content, fullname: GameDB.getDisplayName(session?.username || '') || session?.username || '' })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || '게시 실패');
+    document.getElementById('boardForm').reset();
+    await renderBoardPosts();
+    showAlert(area, '게시글이 등록되었습니다.', 'success');
+  } catch (error) {
+    showAlert(area, error.message, 'error');
+  }
+}
+
+async function deleteBoardPost(id) {
+  if (!confirm('이 게시글을 삭제하시겠습니까?')) return;
+  try {
+    const resp = await fetch(`/api/board/posts/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-user': Auth.getSession()?.username || '' }
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || '삭제 실패');
+    await renderBoardPosts();
+    showAlert(document.getElementById('alertArea'), '게시글이 삭제되었습니다.', 'info');
+  } catch (error) {
+    showAlert(document.getElementById('alertArea'), error.message, 'error');
+  }
+}
+
+async function submitComment(postId) {
+  const input = document.getElementById(`comment-${postId}`);
+  const content = input?.value.trim();
+  if (!content) return;
+  try {
+    const session = Auth.getSession();
+    const resp = await fetch(`/api/board/posts/${postId}/comments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user': session?.username || ''
+      },
+      body: JSON.stringify({ content, fullname: GameDB.getDisplayName(session?.username || '') || session?.username || '' })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || '댓글 실패');
+    input.value = '';
+    await renderBoardPosts();
+    showAlert(document.getElementById('alertArea'), '댓글이 등록되었습니다.', 'success');
+  } catch (error) {
+    showAlert(document.getElementById('alertArea'), error.message, 'error');
+  }
+}
+
+function openBoardPost(postId) {
+  const post = (window.__boardPosts || []).find(item => item.id === postId);
+  if (!post) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'board-detail';
+  overlay.innerHTML = `
+    <div class="board-detail-inner">
+      <div style="display:flex;justify-content:flex-end;">
+        <button class="btn btn-ghost btn-sm" onclick="this.parentElement.parentElement.remove()">닫기</button>
+      </div>
+      <div class="board-detail-title">${escapeHtml(post.title)}</div>
+      <div class="board-detail-body">${escapeHtml(post.content)}</div>
+      <div class="board-card-meta" style="margin-top:16px;">
+        <span>${formatDate(post.createdAt)} · ${escapeHtml(post.authorFullname || post.authorUsername || '익명')}</span>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) overlay.remove();
+  });
+  document.body.appendChild(overlay);
+}
+
+async function editBoardPost(postId) {
+  const newTitle = prompt('새 제목을 입력하세요');
+  if (newTitle === null) return;
+  const newContent = prompt('새 내용을 입력하세요');
+  if (newContent === null) return;
+
+  try {
+    const resp = await fetch(`/api/board/posts/${postId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user': Auth.getSession()?.username || ''
+      },
+      body: JSON.stringify({ title: newTitle, content: newContent })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || '수정 실패');
+    await renderBoardPosts();
+    showAlert(document.getElementById('alertArea'), '게시글이 수정되었습니다.', 'success');
+  } catch (error) {
+    showAlert(document.getElementById('alertArea'), error.message, 'error');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -23,9 +23,10 @@ const GameDB = {
     // localStorage 가 비어있고 data/db.js 백업이 있으면 전체 복원
     // (localStorage 에 데이터가 있으면 백업 파일은 완전히 무시됨)
     if (this._getUsers().length === 0 && window.GAMEDB_BACKUP) {
-      const { users = [], scores = [] } = window.GAMEDB_BACKUP;
+      const { users = [], scores = [], boardPosts = [] } = window.GAMEDB_BACKUP;
       if (users.length)  this._setUsers(users);
       if (scores.length) localStorage.setItem('gp_scores', JSON.stringify(scores));
+      if (boardPosts.length) localStorage.setItem('gp_board_posts', JSON.stringify(boardPosts));
     }
     // 그래도 계정이 없으면 기본 admin 생성
     if (this._getUsers().length === 0) {
@@ -80,11 +81,12 @@ const GameDB = {
   exportFullDB() {
     const users  = this._getUsers();
     const scores = JSON.parse(localStorage.getItem('gp_scores') || '[]');
+    const boardPosts = JSON.parse(localStorage.getItem('gp_board_posts') || '[]');
     const ts     = new Date().toLocaleString('ko-KR');
     const content =
       `// GameHub DB 백업 — ${ts}\n` +
       `// data/db.js 로 저장하면 localStorage 초기화 시 자동 복원됩니다.\n` +
-      `window.GAMEDB_BACKUP = ${JSON.stringify({ users, scores }, null, 2)};\n`;
+      `window.GAMEDB_BACKUP = ${JSON.stringify({ users, scores, boardPosts }, null, 2)};\n`;
     const a   = document.createElement('a');
     a.href    = URL.createObjectURL(new Blob([content], { type: 'text/javascript' }));
     a.download = 'db.js';
@@ -141,6 +143,39 @@ const GameDB = {
     return new Set(this._getScores().map(s => s.username)).size;
   },
 
+  /* ---------- anonymous board ---------- */
+  _getBoardPosts() { return JSON.parse(localStorage.getItem('gp_board_posts') || '[]'); },
+  _setBoardPosts(posts) { localStorage.setItem('gp_board_posts', JSON.stringify(posts)); },
+
+  getBoardPosts() {
+    return this._getBoardPosts()
+      .slice()
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  },
+
+  addBoardPost({ title, content }) {
+    const trimmedTitle = String(title || '').trim();
+    const trimmedContent = String(content || '').trim();
+    if (!trimmedTitle || !trimmedContent) return null;
+
+    const post = {
+      id: `post-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      title: trimmedTitle,
+      content: trimmedContent,
+      createdAt: new Date().toISOString(),
+      author: '익명'
+    };
+
+    const posts = this._getBoardPosts();
+    posts.push(post);
+    this._setBoardPosts(posts);
+    return post;
+  },
+
+  removeBoardPost(id) {
+    this._setBoardPosts(this._getBoardPosts().filter(post => post.id !== id));
+  },
+
 };
 
 // ──────────────────────────────────────────────
@@ -195,6 +230,15 @@ function showAlert(container, msg, type = 'error') {
   setTimeout(() => div.remove(), 4000);
 }
 
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function formatScore(n) {
   return Number(n).toLocaleString();
 }
@@ -218,6 +262,7 @@ function buildNavbar(activePage) {
     <ul class="navbar-nav">
       <li><a href="${basePath()}dashboard.html" ${activePage === 'dashboard' ? 'class="active"' : ''}>대시보드</a></li>
       <li><a href="${basePath()}leaderboard.html" ${activePage === 'leaderboard' ? 'class="active"' : ''}>순위</a></li>
+      <li><a href="${basePath()}board.html" ${activePage === 'board' ? 'class="active"' : ''}>게시판</a></li>
       ${Auth.isAdmin() ? `<li><a href="${basePath()}admin.html" ${activePage === 'admin' ? 'class="active"' : ''}>관리</a></li>` : ''}
     </ul>
     <div class="navbar-right">

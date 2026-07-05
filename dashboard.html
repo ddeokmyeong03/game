@@ -83,6 +83,15 @@
     <div class="game-grid" id="gameGrid"></div>
   </div>
 
+  <!-- Anonymous Board Preview 변경사항 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">▸ 익명 게시판</span>
+      <a href="board.html" class="btn btn-ghost btn-sm">바로 가기 →</a>
+    </div>
+    <div id="boardPreview" class="board-preview-list"></div>
+  </div>
+
   <!-- Leaderboard Preview -->
   <div class="section">
     <div class="section-header">
@@ -204,6 +213,18 @@ async function init() {
       </a>
     `;
   }).join('');
+
+  // Board Preview 변경사항
+  const recentPosts = GameDB.getBoardPosts().slice(0, 3);
+  document.getElementById('boardPreview').innerHTML = recentPosts.length === 0
+    ? '<div class="board-empty">아직 게시글이 없습니다. 첫 글을 남겨보세요.</div>'
+    : recentPosts.map(post => `
+        <div class="board-preview-card">
+          <div class="board-preview-title">${escapeHtml(post.title)}</div>
+          <div class="board-preview-content">${escapeHtml(post.content)}</div>
+          <div class="board-preview-meta">${formatDate(post.createdAt)} · 익명</div>
+        </div>
+      `).join('');
 
   // LB Preview
   document.getElementById('lbPreview').innerHTML = GAMES.map(g => {

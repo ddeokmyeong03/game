@@ -9,5 +9,6 @@
 // ============================================================
 window.GAMEDB_BACKUP = {
   users: [],
-  scores: []
+  scores: [],
+  boardPosts: []
 };
